@@ -13,6 +13,7 @@ import { Card, Empty, Bar, Seg, copyText } from '../ui/bits.jsx';
 import Chain, { NodeDetail, TRANSPORT_ICON } from '../ui/Chain.jsx';
 import MapView from '../ui/MapView.jsx';
 import MapPicker from '../ui/MapPicker.jsx';
+import PlaceSearch from '../ui/PlaceSearch.jsx';
 
 const req = (d) => (d.activities || []).filter((a) => !a.optional);
 const dayPct = (d) => { const r = req(d); return r.length ? r.filter((a) => a.done).length / r.length : 0; };
@@ -388,21 +389,23 @@ function PlacePicker({ scope, value, onChange, here, onHere, center }) {
       <div class="eyebrow" style="margin-bottom:7px">
         {L('জায়গা — চেইন ও ম্যাপে এটাই বসবে', 'Place — this is what lands on the chain and map')}
       </div>
+      <PlaceSearch near={center || f} onPick={onHere} />
       <div class="row" style="gap:8px;margin-bottom:8px">
         <button class="btn ghost sm" type="button" style="flex:1" disabled={busy} onClick={useHere}>
           {busy ? L('খুঁজছে…', 'Locating…') : '📍 ' + L('আমি এখানে', 'I am here')}
         </button>
         <button class="btn ghost sm" type="button" style="flex:1"
           onClick={() => openSheet(() => (
-            <MapPicker center={center || f}
-              onPick={(p) => onHere({ lat: p.lat, lng: p.lng, accuracy: 0, picked: true })} />
+            <MapPicker center={here || center || f} onPick={onHere} />
           ))}>
           🗺️ {L('ম্যাপে বাছো', 'Pick on map')}
         </button>
       </div>
       <label class="fld">
         <span>
-          {scope === 'local' ? L('অথবা একটা জেলা', 'Or a district') : L('অথবা একটা দেশ', 'Or a country')}
+          {scope === 'local'
+            ? L('অথবা মোটামুটি একটা জেলা', 'Or roughly — a district')
+            : L('অথবা মোটামুটি একটা দেশ', 'Or roughly — a country')}
           {f ? ' · ' + L('কাছের আগে', 'nearest first') : ''}
         </span>
         <select value={value} onChange={(e) => onChange(e.currentTarget.value, list)}>
@@ -416,16 +419,25 @@ function PlacePicker({ scope, value, onChange, here, onHere, center }) {
       </label>
       <div class="muted" style="margin:-6px 0 11px">
         {scope === 'local'
-          ? L('জেলা বাছলে পিনটা জেলা সদরে বসে — নির্দিষ্ট জায়গা চাইলে ম্যাপে বাছো।',
-              'A district puts the pin on its headquarters — use the map for an exact spot.')
-          : L('দেশ বাছলে পিনটা দেশের মাঝখানে বসে — নির্দিষ্ট জায়গা চাইলে ম্যাপে বাছো।',
-              'A country puts the pin at its centre — use the map for an exact spot.')}
+          ? L('⚠️ জেলা বাছলে পিনটা জেলা সদরে বসে, তাই দূরত্বও আন্দাজি হয়। সঠিক km চাইলে উপরে নাম লিখে খোঁজো।',
+              '⚠️ A district pins its headquarters, so the distance is only a guess. For a real figure, search by name above.')
+          : L('⚠️ দেশ বাছলে পিনটা দেশের ভৌগোলিক কেন্দ্রে বসে — শহর থেকে শত শত কিলোমিটার দূরে। তখন km-এর কোনো মানে থাকে না। সঠিক দূরত্ব চাইলে উপরে নাম লিখে খোঁজো।',
+              '⚠️ A country pins its geographic centre, often hundreds of kilometres from any city, and the distance becomes meaningless. For a real figure, search by name above.')}
       </div>
       {here && (
-        <div class="muted" style="margin:-6px 0 11px">
-          📍 {NF(here.lat, 4)}, {NF(here.lng, 4)}
-          {here.picked ? ` · ${L('ম্যাপ থেকে', 'from the map')}` : ` · ±${N(Math.round(here.accuracy))} m`}
-          {' · '}<button class="copy" type="button" onClick={() => onHere(null)}>{L('বাদ', 'Clear')}</button>
+        <div class="callout" style="margin:-4px 0 11px">
+          <div class="between">
+            <span style="min-width:0">
+              <b>📍 {here.name || L('বাছা বিন্দু', 'Chosen point')}</b>
+              <span class="muted" style="display:block;font-size:12px">
+                {here.detail ? here.detail + ' · ' : ''}{NF(here.lat, 5)}, {NF(here.lng, 5)}
+                {here.picked === 'search' ? ` · ${L('খুঁজে পাওয়া', 'searched')}`
+                  : here.picked === 'map' ? ` · ${L('ম্যাপ থেকে', 'from the map')}`
+                  : ` · ±${N(Math.round(here.accuracy || 0))} m`}
+              </span>
+            </span>
+            <button class="copy" type="button" onClick={() => onHere(null)}>{L('বাদ', 'Clear')}</button>
+          </div>
         </div>
       )}
     </>
@@ -445,10 +457,10 @@ function ActivitySheet({ trip, day, act }) {
   const save = () => {
     if (!title.trim()) { toast(L('কী করবে সেটা লেখো', 'Write what you will do')); return; }
     const o = placeKey ? placeList.find((x) => (trip.scope === 'local' ? x.en : x.id) === placeKey) : null;
-    const label = title.trim();
+    const label = (here?.name || title).trim();
     const place = here
       ? { lat: here.lat, lng: here.lng, label, label_en: label,
-          countryCode: trip.scope === 'local' ? 'BD' : (trip.countries?.[0] || '050') }
+          countryCode: here.countryCode || (trip.scope === 'local' ? 'BD' : (trip.countries?.[0] || '050')) }
       : o
         ? { lat: o.lat, lng: o.lng, label: o.bn, label_en: o.en,
             countryCode: trip.scope === 'local' ? 'BD' : o.id }

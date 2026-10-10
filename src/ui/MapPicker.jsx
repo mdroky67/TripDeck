@@ -3,7 +3,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { closeSheet, fix } from '../store/state.js';
 import { theme } from '../store/state.js';
-import { L as T, NF, N } from '../i18n.js';
+import { L as T, NF } from '../i18n.js';
+import PlaceSearch from './PlaceSearch.jsx';
 
 /**
  * Drop a pin anywhere by tapping the map.
@@ -26,10 +27,13 @@ export default function MapPicker({ center, onPick }) {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, crossOrigin: true, attribution: '&copy; OpenStreetMap',
     }).addTo(m);
-    m.setView([start.lat, start.lng], fix.value ? 15 : 11);
+    // Open close enough that a finger can actually mark something. A country
+    // view is useless for picking a hotel.
+    m.setView([start.lat, start.lng], center ? 14 : fix.value ? 16 : 12);
+    if (center && typeof center.lat === 'number' && center.name) put(L.latLng(center.lat, center.lng));
 
     const put = (latlng) => {
-      setPoint({ lat: latlng.lat, lng: latlng.lng });
+      setPoint({ lat: latlng.lat, lng: latlng.lng, picked: 'map' });
       if (marker.current) marker.current.setLatLng(latlng);
       else marker.current = L.marker(latlng, {
         icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11],
@@ -64,7 +68,13 @@ export default function MapPicker({ center, onPick }) {
         {T('ম্যাপে যেখানে খুশি ট্যাপ করো — ঠিক ঐ বিন্দুটাই বসবে।',
            'Tap anywhere on the map — that exact point is what gets saved.')}
       </p>
-      <div class="mapwrap"><div ref={box} class="leafmap" style="height:300px" /></div>
+      <PlaceSearch near={center || fix.value} onPick={(p) => {
+        map.current?.setView([p.lat, p.lng], 16);
+        map.current?.fire('click', { latlng: L.latLng(p.lat, p.lng) });
+        setPoint({ ...p, picked: 'search' });
+        if (marker.current) marker.current.setLatLng([p.lat, p.lng]);
+      }} />
+      <div class="mapwrap"><div ref={box} class="leafmap" style="height:360px" /></div>
       <div class="row" style="gap:8px;margin-top:10px">
         <button class="btn ghost sm" style="flex:1" onClick={goToMe}>
           📍 {T('আমার কাছে নাও', 'Centre on me')}
@@ -72,8 +82,13 @@ export default function MapPicker({ center, onPick }) {
       </div>
       <div class="callout" style="margin-top:10px">
         {point
-          ? <>{T('বাছা বিন্দু', 'Selected point')}: <b>{NF(point.lat, 5)}, {NF(point.lng, 5)}</b></>
-          : <span class="muted">{T('এখনো কিছু বাছা হয়নি', 'Nothing picked yet')}</span>}
+          ? <>
+              <b>{point.name || T('বাছা বিন্দু', 'Selected point')}</b>
+              <span class="muted" style="display:block;font-size:12px">
+                {point.detail ? point.detail + ' · ' : ''}{NF(point.lat, 5)}, {NF(point.lng, 5)}
+              </span>
+            </>
+          : <span class="muted">{T('ম্যাপে ট্যাপ করো, বা উপরে নাম লিখে খোঁজো', 'Tap the map, or search by name above')}</span>}
       </div>
       <div class="row" style="gap:8px;margin-top:10px">
         <button class="btn ghost" style="flex:1" onClick={closeSheet}>{T('বাতিল', 'Cancel')}</button>

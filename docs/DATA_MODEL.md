@@ -533,3 +533,35 @@ Two things to keep in mind:
 
 Both `https://localhost` entries are needed in the Google console — one under
 Authorized JavaScript origins, one under Authorized redirect URIs.
+
+---
+
+## 26. Where a distance comes from, and when it is worthless
+
+Every kilometre in the app is measured between two pinned points:
+
+```
+legKm   = haversine(day.from, day.to)
+kmNext  = haversine(node[i], node[i+1])
+remaining = haversine(gpsFix, targetNode)
+road      = OSRM, online only, cached 90 days
+```
+
+The formula is sound. The pin is the weak part.
+
+| Where the pin came from | Error |
+|---|---|
+| Search by name | metres |
+| Tapped on the map | metres |
+| Current GPS position | 10–30 m outdoors |
+| A district | up to ~40 km — it pins the district headquarters |
+| **A country** | **hundreds of km — it pins the geographic centroid** |
+
+Pick "Thailand" and the pin lands roughly 450 km from Bangkok, so every figure
+derived from it is fiction. That is why the activity sheet leads with search and
+the map, labels the country list as "roughly", and says in plain words where
+such a pin will land.
+
+Search uses Nominatim (OpenStreetMap): free, no key, one request per typing
+pause, results cached 30 days so a place looked up once still resolves offline.
+It is the only part of planning that needs a connection.
