@@ -5,13 +5,14 @@ import {
   updateDay, deleteDay, addContact, updateContact, deleteContact,
 } from '../store/actions.js';
 import { chainOf, liveOf } from '../geo/chain.js';
-import { legKm, tripKm, roadDistance } from '../geo/distance.js';
+import { legKm, tripKm, roadDistance, haversine } from '../geo/distance.js';
 import { districts as loadDistricts, countries as loadCountries } from '../geo/data.js';
 import { KIND_META } from '../data/emergency.js';
 import { L, N, NF, tx, dname, fmtDate, fmtTime } from '../i18n.js';
 import { Card, Empty, Bar, Seg, copyText } from '../ui/bits.jsx';
 import Chain, { NodeDetail, TRANSPORT_ICON } from '../ui/Chain.jsx';
 import MapView from '../ui/MapView.jsx';
+import MapPicker from '../ui/MapPicker.jsx';
 
 const req = (d) => (d.activities || []).filter((a) => !a.optional);
 const dayPct = (d) => { const r = req(d); return r.length ? r.filter((a) => a.done).length / r.length : 0; };
@@ -345,13 +346,20 @@ const EMOJI = ['📍','🍳','🍛','☕','🚗','🚂','✈️','🚤','🏨','
  * mark two points a few hundred metres apart and the chain, the map, the
  * distance and the arrival alarm all become real.
  */
-function PlacePicker({ scope, value, onChange, here, onHere }) {
+function PlacePicker({ scope, value, onChange, here, onHere, center }) {
   const [list, setList] = useState([]);
   const [busy, setBusy] = useState(false);
+  const f = fix.value;
   useEffect(() => {
-    (scope === 'local' ? loadDistricts() : loadCountries())
-      .then((raw) => setList([...raw].sort((a, b) => dname(a).localeCompare(dname(b), 'bn'))));
-  }, [scope]);
+    (scope === 'local' ? loadDistricts() : loadCountries()).then((raw) => {
+      // With a known position, put the nearest first — that is almost always
+      // what someone wants, and alphabetical order buries it.
+      const sorted = f
+        ? [...raw].sort((a, b) => haversine(f, a) - haversine(f, b))
+        : [...raw].sort((a, b) => dname(a).localeCompare(dname(b), 'bn'));
+      setList(sorted);
+    });
+  }, [scope, !!f]);
   const key = (x) => (scope === 'local' ? x.en : x.id);
 
   const useHere = () => {
@@ -377,20 +385,46 @@ function PlacePicker({ scope, value, onChange, here, onHere }) {
 
   return (
     <>
+      <div class="eyebrow" style="margin-bottom:7px">
+        {L('জায়গা — চেইন ও ম্যাপে এটাই বসবে', 'Place — this is what lands on the chain and map')}
+      </div>
+      <div class="row" style="gap:8px;margin-bottom:8px">
+        <button class="btn ghost sm" type="button" style="flex:1" disabled={busy} onClick={useHere}>
+          {busy ? L('খুঁজছে…', 'Locating…') : '📍 ' + L('আমি এখানে', 'I am here')}
+        </button>
+        <button class="btn ghost sm" type="button" style="flex:1"
+          onClick={() => openSheet(() => (
+            <MapPicker center={center || f}
+              onPick={(p) => onHere({ lat: p.lat, lng: p.lng, accuracy: 0, picked: true })} />
+          ))}>
+          🗺️ {L('ম্যাপে বাছো', 'Pick on map')}
+        </button>
+      </div>
       <label class="fld">
-        <span>{L('জায়গা (চেইন ও ম্যাপে বসবে)', 'Place (goes on the chain and map)')}</span>
+        <span>
+          {scope === 'local' ? L('অথবা একটা জেলা', 'Or a district') : L('অথবা একটা দেশ', 'Or a country')}
+          {f ? ' · ' + L('কাছের আগে', 'nearest first') : ''}
+        </span>
         <select value={value} onChange={(e) => onChange(e.currentTarget.value, list)}>
           <option value="">— {L('জায়গা নেই', 'No place')} —</option>
-          {list.map((x) => <option key={key(x)} value={key(x)}>{dname(x)}</option>)}
+          {list.map((x) => (
+            <option key={key(x)} value={key(x)}>
+              {dname(x)}{f ? ` · ${Math.round(haversine(f, x))} km` : ''}
+            </option>
+          ))}
         </select>
       </label>
-      <button class="btn ghost sm block" type="button" style="margin:-4px 0 11px" disabled={busy}
-        onClick={useHere}>
-        {busy ? L('খুঁজছে…', 'Locating…') : '📍 ' + L('আমি এখন যেখানে আছি', 'Use my current location')}
-      </button>
+      <div class="muted" style="margin:-6px 0 11px">
+        {scope === 'local'
+          ? L('জেলা বাছলে পিনটা জেলা সদরে বসে — নির্দিষ্ট জায়গা চাইলে ম্যাপে বাছো।',
+              'A district puts the pin on its headquarters — use the map for an exact spot.')
+          : L('দেশ বাছলে পিনটা দেশের মাঝখানে বসে — নির্দিষ্ট জায়গা চাইলে ম্যাপে বাছো।',
+              'A country puts the pin at its centre — use the map for an exact spot.')}
+      </div>
       {here && (
         <div class="muted" style="margin:-6px 0 11px">
-          📍 {NF(here.lat, 4)}, {NF(here.lng, 4)} · ±{N(Math.round(here.accuracy))} m
+          📍 {NF(here.lat, 4)}, {NF(here.lng, 4)}
+          {here.picked ? ` · ${L('ম্যাপ থেকে', 'from the map')}` : ` · ±${N(Math.round(here.accuracy))} m`}
           {' · '}<button class="copy" type="button" onClick={() => onHere(null)}>{L('বাদ', 'Clear')}</button>
         </div>
       )}
@@ -443,6 +477,7 @@ function ActivitySheet({ trip, day, act }) {
       </div>
       <div style="margin-top:12px">
         <PlacePicker scope={trip.scope} value={placeKey} here={here} onHere={setHere}
+          center={act?.place || day.to || day.from || trip.origin}
           onChange={(v, list) => { setPlaceKey(v); setPlaceList(list); setHere(null); }} />
       </div>
       {act?.place && !placeKey && !here && (

@@ -1,8 +1,8 @@
-import { doc, syncState, online, user, onAfterChange } from './state.js';
+import { doc, syncState, online, user, onAfterChange, edit, toast } from './state.js';
 import { saveDoc } from './db.js';
 import { migrate, nowISO, localDate } from './schema.js';
 import * as drive from '../google/drive.js';
-import { hasToken, isConfigured } from '../google/auth.js';
+import { hasToken, isConfigured, consumeRedirectResult, fetchProfile } from '../google/auth.js';
 
 /* ---------------- merge ----------------
  * Entity-wise last-write-wins plus tombstones. docs/DATA_MODEL.md §12
@@ -127,4 +127,32 @@ onAfterChange(scheduleSync);
 export async function pullAfterSignIn(profile) {
   user.value = profile;
   await syncNow();
+}
+
+/**
+ * Finish a redirect sign-in. Called once the document is loaded, because the
+ * profile it fetches is written into it.
+ */
+export async function finishRedirectSignIn() {
+  const r = consumeRedirectResult();
+  if (!r) return;
+  if (r.error) {
+    toast(r.error === 'access_denied'
+      ? 'Sign-in was cancelled'
+      : `Sign-in failed: ${r.error}`);
+    return;
+  }
+  try {
+    const prof = await fetchProfile();
+    user.value = prof;
+    edit((d) => {
+      d.profile.name = prof.name;
+      d.profile.email = prof.email;
+      d.profile.picture = prof.picture;
+    });
+    await syncNow();
+    toast('Signed in — your data now saves to Drive');
+  } catch (e) {
+    toast('Signed in, but the profile could not be read');
+  }
 }

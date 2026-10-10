@@ -1,6 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { ready, ui, setUI, online, syncState, boot, user, setLang } from './store/state.js';
-import './store/sync.js';               // registers the sync hook
+import { finishRedirectSignIn } from './store/sync.js';   // also registers the sync hook
 import { lang, L } from './i18n.js';
 import Trips from './screens/Trips.jsx';
 import Plan from './screens/Plan.jsx';
@@ -31,7 +31,7 @@ const GearIcon = () => (
 );
 
 export default function App() {
-  useEffect(() => { boot(); }, []);
+  useEffect(() => { boot().then(finishRedirectSignIn); }, []);
 
   // Hash routing — the back button works, with no router library
   useEffect(() => {

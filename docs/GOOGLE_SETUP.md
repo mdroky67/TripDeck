@@ -36,10 +36,17 @@ Platform**)
 - **Authorized JavaScript origins**:
   ```
   http://localhost:5173              ← development
-  https://<your-user>.github.io      ← once it is published
   https://localhost                  ← the Android WebView, if you build the APK
+  https://<your-user>.github.io      ← once it is published
   ```
-- No redirect URI is needed; the token flow runs in a popup.
+- **Authorized redirect URIs** — required for the APK:
+  ```
+  https://localhost
+  ```
+  In a browser the sign-in happens in a popup and needs no redirect URI. Inside
+  an Android WebView a popup cannot hand its result back, so the app redirects
+  itself to Google and comes back to `https://localhost` — which is the
+  WebView's own address — with the token in the URL fragment.
 - Create, then copy the **client ID** (`…apps.googleusercontent.com`).
 
 ## Step 4 — put it in the app
@@ -149,7 +156,9 @@ app does not lose it.
 |---|---|---|
 | `403 … Drive API has not been used in project` | The API was never enabled | Library → Google Drive API → Enable |
 | `access_denied` / "App is blocked" | Consent screen is in Testing and you are not a test user | Audience → Test users → add your address |
-| `redirect_uri_mismatch` / `origin_mismatch` | The address you opened the app from is not listed | Credentials → add that origin |
+| `origin_mismatch` | The address you opened the app from is not listed | Credentials → **Authorized JavaScript origins** → add it |
+| `redirect_uri_mismatch` | Only bites the APK | Credentials → **Authorized redirect URIs** → add `https://localhost` |
+| Login succeeds, then a blank screen | An old build still using the popup flow | Rebuild; native now uses a redirect |
 | "Google hasn't verified this app" | Normal in Testing mode | Advanced → Go to … (you are the developer) |
 | Signs in, then fails to save | Missing `drive.appdata` scope | Add it on the consent screen and sign in again |
 

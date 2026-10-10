@@ -495,3 +495,41 @@ export function localDate(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 ```
+
+---
+
+## 25. Signing in from inside a WebView
+
+Google's own library signs in through a popup and returns the result with
+`postMessage`. That return path does not exist inside an Android WebView: the
+login completes and the popup is left blank, with no error anywhere.
+
+So native uses a plain redirect instead. The app sends the WebView to Google
+with `redirect_uri` set to its own origin (`https://localhost`, which is what
+Capacitor serves), and Google comes back with the token in the URL fragment.
+
+```js
+// going out
+location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+  client_id, redirect_uri: location.origin, response_type: 'token',
+  scope, include_granted_scopes: 'true', prompt: 'consent', state,
+}));
+
+// coming back, read before anything touches location.hash
+const p = new URLSearchParams(location.hash.slice(1));
+token = p.get('access_token');
+history.replaceState(null, '', location.pathname);
+```
+
+Two things to keep in mind:
+
+1. **Read the fragment before the router runs.** The router writes the current
+   tab into `location.hash` when it mounts, which would wipe the token first.
+   The read therefore happens at the top of `main.jsx`, and its answer is
+   cached for the sign-in code to pick up later.
+2. **A silent renew cannot redirect.** Sending the whole app to Google without
+   being asked would be hostile, so on native `signIn({ silent: true })`
+   refuses and the user is asked to sign in again when the token expires.
+
+Both `https://localhost` entries are needed in the Google console — one under
+Authorized JavaScript origins, one under Authorized redirect URIs.

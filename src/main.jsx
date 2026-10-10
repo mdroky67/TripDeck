@@ -1,6 +1,11 @@
 import { render } from 'preact';
 import App from './app.jsx';
+import { consumeRedirectResult } from './google/auth.js';
 import './styles.css';
+
+// Must happen before the router writes to location.hash, or the token that
+// Google just put there is gone.
+consumeRedirectResult();
 
 render(<App />, document.getElementById('app'));
 

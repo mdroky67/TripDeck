@@ -129,7 +129,9 @@ needs the Capacitor background-geolocation plugin.
 
 | Error | Fix |
 |---|---|
-| `origin_mismatch` | Add `https://localhost` to Authorized JavaScript origins |
+| `origin_mismatch` | Add `https://localhost` to **Authorized JavaScript origins** |
+| `redirect_uri_mismatch` | Add `https://localhost` to **Authorized redirect URIs** too |
+| Blank screen after a successful login | An old APK using the popup flow — rebuild |
 | `access_denied` | Add your address under Test users on the consent screen |
 | `403 … Drive API has not been used` | Enable the Google Drive API |
 | Sign-in button says "not configured" | `VITE_GOOGLE_CLIENT_ID` missing from the build |
