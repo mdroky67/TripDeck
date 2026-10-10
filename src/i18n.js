@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 
 /** 'bn' or 'en'. The whole app watches this one signal. */
-export const lang = signal('bn');
+export const lang = signal('en');
 
 /** UI text: L(bengali, english) */
 export const L = (bn, en) => (lang.value === 'bn' ? bn : en);

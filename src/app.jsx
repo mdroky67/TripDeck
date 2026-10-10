@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { ready, ui, setUI, online, syncState, boot } from './store/state.js';
+import { ready, ui, setUI, online, syncState, boot, user, setLang } from './store/state.js';
 import './store/sync.js';               // registers the sync hook
 import { lang, L } from './i18n.js';
 import Trips from './screens/Trips.jsx';
@@ -20,6 +20,15 @@ const TABS = [
 ];
 
 const SCREEN = { trips: Trips, plan: Plan, live: Live, world: World, stats: Stats, settings: Settings };
+
+/** A real gear, not the ⚙︎ text glyph — that renders tiny and differently everywhere. */
+const GearIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
 
 export default function App() {
   useEffect(() => { boot(); }, []);
@@ -56,6 +65,23 @@ export default function App() {
 
   return (
     <div class="shell">
+      <header class="topbar">
+        <span class="brand">TripDeck</span>
+        <div class="row" style="gap:8px">
+          <button class="langbtn" onClick={() => setLang(lang.value === 'bn' ? 'en' : 'bn')}
+            aria-label={L('ভাষা বদলাও', 'Change language')}>
+            {L('EN', 'বাং')}
+          </button>
+          <button class={`iconbtn ${isSettings ? 'on' : ''}`}
+            aria-label={L('সেটিংস', 'Settings')}
+            onClick={() => setUI({ tab: isSettings ? 'trips' : 'settings' })}>
+            {user.value?.picture
+              ? <img src={user.value.picture} alt="" />
+              : <GearIcon />}
+          </button>
+        </div>
+      </header>
+
       <div class="view">
         {!online.value && (
           <div class="banner off">
@@ -67,18 +93,6 @@ export default function App() {
           <div class="banner err">
             ⚠️ {L('Drive-এ সেভ হয়নি। সেটিংসে গিয়ে আবার লগইন করো।',
                   'Could not save to Drive. Sign in again from Settings.')}
-          </div>
-        )}
-        {!isSettings && (
-          <div class="topbar" style="padding:0 0 6px">
-            <span class="brand">TripDeck</span>
-            <div class="row" style="gap:6px">
-              <button class="copy" onClick={() => { lang.value = lang.value === 'bn' ? 'en' : 'bn'; }}>
-                {L('English', 'বাংলা')}
-              </button>
-              <button class="copy" aria-label={L('সেটিংস', 'Settings')}
-                onClick={() => setUI({ tab: 'settings' })}>⚙︎</button>
-            </div>
           </div>
         )}
         <Screen />

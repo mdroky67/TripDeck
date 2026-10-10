@@ -16,7 +16,9 @@ function Node({ n, i, selected, onSelect, atStart }) {
         <span class="muted" style="display:block;font-size:11.5px">
           {L('দিন', 'Day')} {N(n.day)}
           {n.time ? ' · ' + fmtTime(n.time) : ''}
-          {acts.length ? ` · ${N(acts.length)} ${L('টা কাজ', 'activities')}` : ''}
+          {acts.length
+            ? ` · ${N(acts.length)} ${acts.length === 1 ? L('টা কাজ', 'activity') : L('টা কাজ', 'activities')}`
+            : ''}
           {n.state === 'now'
             ? ' · ' + (atStart ? L('এখান থেকে শুরু', 'start here') : L('এখন এখানে যাচ্ছি', 'heading here now'))
             : ''}
@@ -26,7 +28,7 @@ function Node({ n, i, selected, onSelect, atStart }) {
   );
 }
 
-export default function Chain({ chain, live, mode = 'car', selNode, onSelect, units }) {
+export default function Chain({ chain, live, selNode, onSelect }) {
   const { nodes, target } = chain;
   if (!nodes.length) return null;
   return (
@@ -37,10 +39,10 @@ export default function Chain({ chain, live, mode = 'car', selNode, onSelect, un
             atStart={target === 0} />
           {i < nodes.length - 1 && (
             <span class={`leg ${i === target - 1 ? 'now' : ''}`}>
-              <span class="sp">{TRANSPORT_ICON[mode] || '🚗'}</span>
+              <span class="sp">{TRANSPORT_ICON[n.legMode] || '🚗'}</span>
               <span>
                 {NF(n.kmNext || 0)} km
-                {n.kmNext > 0 ? ' · ~' + fmtMins(etaMins(n.kmNext, mode)) : ''}
+                {n.kmNext > 0 ? ' · ~' + fmtMins(etaMins(n.kmNext, n.legMode)) : ''}
                 {i === target - 1 && live?.hasFix
                   ? ` · ${NF(live.remaining)} km ${L('বাকি', 'to go')}`
                   : ''}

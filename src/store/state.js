@@ -19,7 +19,7 @@ export const ui = signal({
 });
 export const setUI = (patch) => { ui.value = { ...ui.value, ...patch }; };
 
-export const theme = signal('system');
+export const theme = signal('light');
 
 /* ---------- derived ---------- */
 export const trips = computed(() => doc.value?.trips || []);
@@ -83,8 +83,8 @@ export async function boot() {
   let d = null;
   try { d = await loadDoc(); } catch {}
   doc.value = d ? migrate(d) : createDoc();
-  lang.value = doc.value.profile.lang || 'bn';
-  theme.value = doc.value.profile.theme || 'system';
+  lang.value = doc.value.profile.lang || 'en';
+  theme.value = doc.value.profile.theme || 'light';
   applyTheme(theme.value);
   if (!ui.value.tripId && doc.value.trips.length) {
     const last = doc.value.profile.lastTripId;

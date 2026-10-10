@@ -195,7 +195,7 @@ function ChainView({ trip, chain, live }) {
             ? <span class="chip coral">{L('আর', 'Left')} {NF(live.remaining)} km</span>
             : <span class="chip">{L('পরের ধাপ', 'Next leg')} {NF(live.legKm)} km</span>}
         </div>
-        <Chain chain={chain} live={live} mode={trip.days[0]?.transport || 'car'}
+        <Chain chain={chain} live={live}
           selNode={u.selNode} onSelect={(i) => setUI({ selNode: i })} />
       </Card>
       <div style="margin-top:12px">
@@ -339,21 +339,62 @@ function ContactSheet({ trip, c }) {
 /* ---------------- day & activity sheets ---------------- */
 const EMOJI = ['📍','🍳','🍛','☕','🚗','🚂','✈️','🚤','🏨','🏛️','🌳','🏖️','🛶','🛍️','🎟️','⛰️','🌉','🐘','🕌','🎒'];
 
-function PlacePicker({ scope, value, onChange }) {
+/**
+ * Pick a place: either from the list, or the phone's current position.
+ * "Use my location" is what makes the whole thing testable without travelling —
+ * mark two points a few hundred metres apart and the chain, the map, the
+ * distance and the arrival alarm all become real.
+ */
+function PlacePicker({ scope, value, onChange, here, onHere }) {
   const [list, setList] = useState([]);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     (scope === 'local' ? loadDistricts() : loadCountries())
       .then((raw) => setList([...raw].sort((a, b) => dname(a).localeCompare(dname(b), 'bn'))));
   }, [scope]);
   const key = (x) => (scope === 'local' ? x.en : x.id);
+
+  const useHere = () => {
+    if (!navigator.geolocation) { toast(L('এই ডিভাইসে GPS নেই', 'No GPS on this device')); return; }
+    setBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setBusy(false);
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+        onHere({ lat, lng, accuracy });
+        toast(L(`অবস্থান নেওয়া হয়েছে (±${Math.round(accuracy)} মি)`,
+                `Location captured (±${Math.round(accuracy)} m)`));
+      },
+      (err) => {
+        setBusy(false);
+        toast(err.code === 1
+          ? L('লোকেশনের অনুমতি দাওনি', 'Location permission denied')
+          : L('অবস্থান পাওয়া গেল না', 'Could not get a location'));
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  };
+
   return (
-    <label class="fld">
-      <span>{L('জায়গা (চেইন ও ম্যাপে বসবে)', 'Place (goes on the chain and map)')}</span>
-      <select value={value} onChange={(e) => onChange(e.currentTarget.value, list)}>
-        <option value="">— {L('জায়গা নেই', 'No place')} —</option>
-        {list.map((x) => <option key={key(x)} value={key(x)}>{dname(x)}</option>)}
-      </select>
-    </label>
+    <>
+      <label class="fld">
+        <span>{L('জায়গা (চেইন ও ম্যাপে বসবে)', 'Place (goes on the chain and map)')}</span>
+        <select value={value} onChange={(e) => onChange(e.currentTarget.value, list)}>
+          <option value="">— {L('জায়গা নেই', 'No place')} —</option>
+          {list.map((x) => <option key={key(x)} value={key(x)}>{dname(x)}</option>)}
+        </select>
+      </label>
+      <button class="btn ghost sm block" type="button" style="margin:-4px 0 11px" disabled={busy}
+        onClick={useHere}>
+        {busy ? L('খুঁজছে…', 'Locating…') : '📍 ' + L('আমি এখন যেখানে আছি', 'Use my current location')}
+      </button>
+      {here && (
+        <div class="muted" style="margin:-6px 0 11px">
+          📍 {NF(here.lat, 4)}, {NF(here.lng, 4)} · ±{N(Math.round(here.accuracy))} m
+          {' · '}<button class="copy" type="button" onClick={() => onHere(null)}>{L('বাদ', 'Clear')}</button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -365,13 +406,19 @@ function ActivitySheet({ trip, day, act }) {
   const [note, setNote] = useState(act?.note || '');
   const [placeKey, setPlaceKey] = useState('');
   const [placeList, setPlaceList] = useState([]);
+  const [here, setHere] = useState(null);
 
   const save = () => {
     if (!title.trim()) { toast(L('কী করবে সেটা লেখো', 'Write what you will do')); return; }
     const o = placeKey ? placeList.find((x) => (trip.scope === 'local' ? x.en : x.id) === placeKey) : null;
-    const place = o
-      ? { lat: o.lat, lng: o.lng, label: o.bn, label_en: o.en, countryCode: trip.scope === 'local' ? 'BD' : o.id }
-      : (act?.place || null);
+    const label = title.trim();
+    const place = here
+      ? { lat: here.lat, lng: here.lng, label, label_en: label,
+          countryCode: trip.scope === 'local' ? 'BD' : (trip.countries?.[0] || '050') }
+      : o
+        ? { lat: o.lat, lng: o.lng, label: o.bn, label_en: o.en,
+            countryCode: trip.scope === 'local' ? 'BD' : o.id }
+        : (act?.place || null);
     const data = { title: title.trim(), title_en: title.trim(), time, icon, optional, note, place };
     if (act) updateActivity(trip.id, day.id, act.id, data);
     else addActivity(trip.id, day.id, { ...data, type: 'activity' });
@@ -395,10 +442,10 @@ function ActivitySheet({ trip, day, act }) {
         ))}
       </div>
       <div style="margin-top:12px">
-        <PlacePicker scope={trip.scope} value={placeKey}
-          onChange={(v, list) => { setPlaceKey(v); setPlaceList(list); }} />
+        <PlacePicker scope={trip.scope} value={placeKey} here={here} onHere={setHere}
+          onChange={(v, list) => { setPlaceKey(v); setPlaceList(list); setHere(null); }} />
       </div>
-      {act?.place && !placeKey && (
+      {act?.place && !placeKey && !here && (
         <div class="muted" style="margin:-6px 0 11px">📍 {tx(act.place, 'label')}</div>
       )}
       <label class="fld"><span>{L('নোট', 'Note')}</span>

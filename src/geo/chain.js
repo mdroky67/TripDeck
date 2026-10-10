@@ -13,8 +13,12 @@ export function chainOf(trip) {
     if (!place || typeof place.lat !== 'number') return;
     const last = nodes[nodes.length - 1];
     if (last && last.label === place.label) {
-      // Merge consecutive repeats of the same place, keeping their activities
-      Object.assign(last, meta, { acts: last.acts.concat(meta.acts || []) });
+      // Merge consecutive repeats of the same place, keeping their activities.
+      // dayFirst/arrivedBy are deliberately left alone: a night stop that the
+      // next day starts from must keep the day it was reached on, or every
+      // leg ends up attributed to the wrong day's transport.
+      const { dayFirst, arrivedBy, ...rest } = meta;
+      Object.assign(last, rest, { acts: last.acts.concat(meta.acts || []) });
       return;
     }
     nodes.push({
@@ -25,13 +29,28 @@ export function chainOf(trip) {
   };
 
   (trip.days || []).forEach((d, di) => {
-    push(d.from, { day: di + 1, dayId: d.id, kind: 'start', acts: [] });
+    const meta = {
+      day: di + 1, dayId: d.id,
+      dayFirst: di + 1,                 // the day this stop was first reached
+      arrivedBy: d.transport || 'car',  // and how it was reached
+    };
+    push(d.from, { ...meta, kind: 'start', acts: [] });
     (d.activities || []).forEach((a) => {
-      if (a.place) push(a.place, { day: di + 1, dayId: d.id, icon: a.icon, time: a.time, acts: [a] });
+      if (a.place) push(a.place, { ...meta, icon: a.icon, time: a.time, acts: [a] });
       else if (nodes.length) nodes[nodes.length - 1].acts.push(a);
     });
-    push(d.to, { day: di + 1, dayId: d.id, icon: '🌙', kind: 'night', acts: [] });
+    push(d.to, { ...meta, icon: '🌙', kind: 'night', acts: [] });
   });
+
+  // Hopping between stops inside one day is local travel, whatever the day's
+  // headline transport says — nobody flies 2 km across a city. A leg only uses
+  // the day's transport when it crosses days or covers real distance.
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i], b = nodes[i + 1];
+    const crossesDay = a.dayFirst !== b.dayFirst;
+    const long = haversine(a, b) > 120;
+    a.legMode = (crossesDay || long) ? (b.arrivedBy || 'car') : 'car';
+  }
 
   // The node after the last one with a ticked activity is where we are heading
   let last = -1;

@@ -28,7 +28,7 @@ export default function Live() {
   const live = liveOf(t, f);
   const { chain } = live;
   const settings = d.settings;
-  const mode = t.days[ui.value.dayIdx]?.transport || t.days[0]?.transport || 'car';
+  const mode = live.chain.nodes[Math.max(0, live.chain.target - 1)]?.legMode || 'car';
   const speed = f?.speed ? f.speed * 3.6 : null;
   const eta = etaMins(live.remaining, mode);
 
@@ -158,7 +158,7 @@ export default function Live() {
           <span class="muted">{L('কত দূর থেকে', 'Arrival radius')}</span>
           <span class="num">{N(d.settings.alarms.arrivalRadiusM)} m</span>
         </div>
-        <input type="range" min="100" max="2000" step="100" style="width:100%"
+        <input type="range" min="50" max="2000" step="50" style="width:100%"
           value={d.settings.alarms.arrivalRadiusM}
           onInput={(e) => edit((d) => { d.settings.alarms.arrivalRadiusM = Number(e.currentTarget.value); })} />
       </Card>

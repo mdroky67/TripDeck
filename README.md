@@ -66,6 +66,7 @@ android/                Capacitor's native project (permissions, icons)
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | JSON schema, sync/merge, the chain, bilingual rules |
 | [docs/GOOGLE_SETUP.md](docs/GOOGLE_SETUP.md) | OAuth and Drive setup, with the code |
 | [docs/TASKS.md](docs/TASKS.md) | What is done, what is left |
+| [docs/TESTING.md](docs/TESTING.md) | How to test everything, mostly without leaving home |
 | [APK.md](APK.md) | The phone app — where to get it, what it asks for |
 | [DEPLOY.md](DEPLOY.md) | Pushing and publishing |
 
