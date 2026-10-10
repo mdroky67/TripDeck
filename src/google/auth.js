@@ -36,10 +36,16 @@ const looksLikeId = (v) => /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(
 export const isConfigured = () =>
   isNative() ? looksLikeId(androidClientId) : looksLikeId(clientId());
 
-/** com.googleusercontent.apps.123-abc:/oauth2redirect */
-const androidRedirect = () =>
-  'com.googleusercontent.apps.' + androidClientId.replace('.apps.googleusercontent.com', '')
-  + ':/oauth2redirect';
+/**
+ * Android clients redirect to the package name, not to a reversed client id —
+ * that form belongs to iOS clients, and Google answers an Android request made
+ * with it with a flat "request is invalid".
+ *
+ *   Android : app.tripdeck.mobile:/oauth2redirect
+ *   iOS     : com.googleusercontent.apps.<id>:/oauth2redirect
+ */
+export const ANDROID_PACKAGE = 'app.tripdeck.mobile';
+const androidRedirect = () => `${ANDROID_PACKAGE}:/oauth2redirect`;
 
 function gsiReady() {
   return new Promise((resolve, reject) => {
@@ -170,7 +176,7 @@ async function signInNative() {
       fn();
     };
     handle = await App.addListener('appUrlOpen', ({ url: back }) => {
-      if (!back || !back.startsWith('com.googleusercontent.apps.')) return;
+      if (!back || !back.startsWith(`${ANDROID_PACKAGE}:`)) return;
       exchange(back).then(
         (t) => done(() => resolve(t)),
         (e) => done(() => reject(e)),

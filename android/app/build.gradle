@@ -10,12 +10,6 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        // Reversed Google client id, used as the OAuth redirect scheme.
-        // Supplied by CI from a secret; the fallback matches nothing.
-        manifestPlaceholders = [
-            googleRedirectScheme: System.getenv('GOOGLE_REDIRECT_SCHEME')
-                ?: 'com.googleusercontent.apps.unconfigured'
-        ]
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61

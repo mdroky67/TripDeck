@@ -63,15 +63,20 @@ app as different things and will not accept one in place of the other.
   (`private/signing/CREDENTIALS.txt`)
 
 An Android client has **no secret** — PKCE takes its place — and its redirect
-is the client ID reversed:
+is the **package name**:
 
 ```
-com.googleusercontent.apps.<the id without .apps.googleusercontent.com>:/oauth2redirect
+app.tripdeck.mobile:/oauth2redirect
 ```
 
-That scheme has to match the app's intent filter, which is filled at build time
-from the `GOOGLE_REDIRECT_SCHEME` secret, so nothing project-specific is
-committed.
+Nothing to register and nothing to configure: Google derives it from the
+package name already entered above, and Gradle fills the app's intent filter
+from the same `applicationId`. The two therefore cannot drift apart.
+
+> **Not the reversed client ID.** `com.googleusercontent.apps.<id>:/…` is the
+> **iOS** form. Sending it from an Android client makes Google answer with a
+> bare *"Access blocked: TripDeck's request is invalid"* — no hint as to which
+> parameter it disliked.
 
 > The fingerprint belongs to the key that signs the APK. If that key ever
 > changes, Google stops recognising the app and sign-in fails — which is why
@@ -208,7 +213,7 @@ The flow:
 
 ```
 app → Chrome Custom Tab → accounts.google.com
-    → com.googleusercontent.apps.<id>:/oauth2redirect?code=…
+    → app.tripdeck.mobile:/oauth2redirect?code=…
     → app exchanges the code for a token, proving it with the PKCE verifier
 ```
 

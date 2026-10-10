@@ -23,14 +23,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Google hands the sign-in result back on this scheme. The value
-                 comes from a build placeholder so no project-specific id ends
-                 up in the repository. -->
+            <!-- Google returns the sign-in result on the package name, which
+                 is what an Android OAuth client expects as its redirect.
+                 (A reversed client id is the iOS form; Google rejects it here.) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="${googleRedirectScheme}" />
+                <data android:scheme="${applicationId}" />
             </intent-filter>
 
         </activity>
