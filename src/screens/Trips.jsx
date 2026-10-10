@@ -111,7 +111,7 @@ export default function Trips() {
       </div>
 
       {trips.length > 0 && (
-        <button class="btn ghost sm" onClick={() => openSheet(() => <TripMenu trip={active} />)}>
+        <button class="btn ghost sm" onClick={() => openSheet(() => <TripMenu tripId={active.id} />)}>
           ⚙︎ {L('এই ট্রিপের সেটিংস', 'Trip settings')}
         </button>
       )}
@@ -303,7 +303,11 @@ function PastTripSheet() {
   );
 }
 
-function TripMenu({ trip }) {
+function TripMenu({ tripId }) {
+  // Read from the document every render. A sheet is opened with a closure, so
+  // holding the trip object it was opened with means the status buttons never
+  // update — they only looked right after a save and a reopen.
+  const trip = doc.value.trips.find((t) => t.id === tripId);
   const [confirm, setConfirm] = useState(false);
   const [budget, setBudget] = useState(trip?.budget?.planned || 0);
   const [cur, setCur] = useState(trip?.currency || 'BDT');

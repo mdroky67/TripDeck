@@ -61,9 +61,17 @@ export function edit(mutator, { sync = true } = {}) {
   d.updatedAt = nowISO();
   d.deviceId = deviceId();
   d.rev = (d.rev || 0) + 1;
-  // Give every trip a fresh reference. Without it, signals sees identical
-  // props and skips re-rendering, so the screen keeps showing stale data.
-  doc.value = { ...d, trips: d.trips.map((t) => ({ ...t })) };
+  // Give every collection a fresh reference. Mutating in place and only
+  // replacing the root leaves the arrays identical, and both signals and
+  // useMemo then conclude nothing changed — the data moves, the screen does
+  // not. Cloning a handful of shallow arrays costs nothing.
+  doc.value = {
+    ...d,
+    trips: d.trips.map((t) => ({ ...t })),
+    visits: [...d.visits],
+    past: [...d.past],
+    districts: [...d.districts],
+  };
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     saveDoc(doc.value).catch(() => {});

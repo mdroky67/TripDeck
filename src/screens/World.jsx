@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { doc, ui, setUI, toast } from '../store/state.js';
+import { doc, ui, setUI, toast, openSheet } from '../store/state.js';
 import { toggleCountry, toggleDistrict } from '../store/actions.js';
 import { countries as loadCountries, districts as loadDistricts } from '../geo/data.js';
 import { WORLD_COUNTRIES, WORLD_LAND_KM2, BD_DISTRICTS, CONTINENTS, areaOf, continentOf, TINY_STATES } from '../geo/places.js';
@@ -7,6 +7,7 @@ import { L, N, NF, dname } from '../i18n.js';
 import { Card, Seg, Meter, Legend } from '../ui/bits.jsx';
 import WorldCanvas from '../ui/WorldCanvas.jsx';
 import DistrictCanvas from '../ui/DistrictCanvas.jsx';
+import CoverageSheet from '../ui/CoverageSheet.jsx';
 
 export default function World() {
   const view = ui.value.worldView;
@@ -87,11 +88,15 @@ function Globe() {
         </div>
       </Card>
 
+      <button class="btn block" onClick={() => openSheet(() => <CoverageSheet kind="country" />)}>
+        🔍 {L('দেশ যোগ বা বাদ দাও', 'Add or remove countries')}
+      </button>
       <WorldCanvas visited={visited} onToggle={toggle} />
       <Legend items={[
         { color: 'var(--teal)', label: L('ভিজিট করা', 'Visited') },
         { color: 'var(--land)', label: L('বাকি', 'Not yet') },
-        { label: L('ম্যাপে ট্যাপ করো — টগল হবে', 'Tap the map to toggle') },
+        { label: L('ম্যাপে ট্যাপও করা যায়, তবে খোঁজাই সহজ',
+                   'The map works too, but searching is easier') },
       ]} />
 
       <Card>
@@ -151,6 +156,9 @@ function Districts() {
         </div>
       </Card>
 
+      <button class="btn block" onClick={() => openSheet(() => <CoverageSheet kind="district" />)}>
+        🔍 {L('জেলা যোগ বা বাদ দাও', 'Add or remove districts')}
+      </button>
       <DistrictCanvas visited={visited} onToggle={(x) => {
         toggleDistrict(x.en);
         toast(dname(x) + (visited.has(x.en) ? L(' বাদ গেলো', ' removed') : L(' যোগ হলো', ' added')));
@@ -158,7 +166,8 @@ function Districts() {
       <Legend items={[
         { color: 'var(--violet)', label: L('ঘোরা হয়েছে', 'Visited') },
         { color: 'var(--ink-3)', label: L('বাকি', 'Not yet') },
-        { label: L('জেলায় ট্যাপ করো', 'Tap a district') },
+        { label: L('ম্যাপে ট্যাপও করা যায়, তবে খোঁজাই সহজ',
+                   'The map works too, but searching is easier') },
       ]} />
 
       <Card>
