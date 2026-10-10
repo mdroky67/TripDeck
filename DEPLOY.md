@@ -1,75 +1,83 @@
 # Publishing
 
-## Web — GitHub Pages
+## Phone — the APK
+
+Every push to `main` builds one. Collect it from
+**Actions → the latest run → Artifacts → `TripDeck-apk`**, or tag a release:
 
 ```bash
-npm run deploy        # builds, then pushes dist/ to the gh-pages branch
+git tag v1.0.0 && git push --tags
 ```
 
-Once, afterwards: **Settings → Pages → Source: Deploy from a branch → `gh-pages`
-/ root**. The site appears at `https://<user>.github.io/<repo>/` a couple of
-minutes later.
+A tagged build is attached to **Releases**, which does not expire the way build
+artifacts do. Details in [APK.md](APK.md).
 
-`vite.config.js` sets `base` to the repository name for production builds.
-If the repository is renamed, change it there. For any other host:
+## Web (optional)
+
+There is no Pages workflow: this project ships as an APK. To publish the web
+build anyway:
+
+```bash
+npm run deploy        # builds, then pushes dist/ to a gh-pages branch
+```
+
+Then **Settings → Pages → Deploy from a branch → `gh-pages` / root**, and add
+the resulting origin to the Google console under **Authorized JavaScript
+origins**, or sign-in returns `origin_mismatch`.
+
+`vite.config.js` sets `base` to the repository name for production builds. For
+any other host:
 
 ```bash
 BASE=/ npm run build
 ```
 
-There is also a workflow (`.github/workflows/pages.yml`) that deploys on every
-push to `main`. It skips itself on a private repository, because Pages is not
-available there on the free plan.
-
-After the first deploy, add the new origin to the Google console —
-**Credentials → Authorized JavaScript origins** — or sign-in returns
-`origin_mismatch`.
-
-## Phone — APK
-
-See [APK.md](APK.md). Short version: push, then collect the APK from the
-Actions artifacts.
-
-## Pushing for the first time
+## Pushing
 
 ```bash
 git remote add origin https://github.com/<user>/<repo>.git
 git push -u origin main
 ```
 
-GitHub wants a **personal access token**, not your password:
+GitHub wants a **personal access token**, not a password:
 https://github.com/settings/tokens/new → tick **`repo`** *and* **`workflow`**.
 
 Without `workflow` the push is rejected with:
 ```
 refusing to allow a Personal Access Token to create or update workflow
 ```
-The fix is to tick that box on the existing token (the token string does not
-change, so nothing else needs updating) and push again.
+Ticking that box on the existing token is enough — the token string does not
+change, so nothing else needs updating.
 
-On macOS the token is remembered in the Keychain. To replace it:
+Never put the token in the remote URL (`https://TOKEN@github.com/...`): it ends
+up in `.git/config` in plain text. Let the credential helper store it instead:
 
 ```bash
-printf 'protocol=https\nhost=github.com\n\n' | git credential-osxkeychain erase
+printf 'protocol=https\nhost=github.com\n\n' | git credential-osxkeychain erase   # forget the old one
+git push                                                                          # it will ask once
 ```
 
-Or avoid the whole question with `brew install gh && gh auth login`.
+To check what a stored token is allowed to do, without printing it:
+
+```bash
+curl -s -D- -o /dev/null -H "Authorization: Bearer $(printf 'protocol=https\nhost=github.com\n\n' \
+  | git credential fill | grep ^password= | cut -d= -f2-)" \
+  https://api.github.com/user | grep -i x-oauth-scopes
+```
 
 ## Public or private?
 
 | | Public | Private |
 |---|---|---|
 | APK builds in Actions | free, unlimited | free, 2,000 min/month (~250 builds) |
-| GitHub Pages | ✅ | ❌ not on the free plan |
 | Who can read the code | anyone | you |
 
-Nothing in this repository is sensitive — `.env` is ignored, no secret is
-committed, and demo data is fictional. Either choice is safe; private simply
-costs you the web link.
+Nothing here is sensitive — `.env` is ignored, no secret is committed, and the
+demo data is fictional. Either choice is safe.
 
-## Routine, once it is set up
+## Routine
 
 ```bash
 git add -A && git commit -m "what changed"
-git push              # APK builds, and Pages redeploys if public
+git push              # a new APK builds
 ```

@@ -7,8 +7,7 @@ your own Google Drive — **no server, no hosting bill**.
 ```bash
 npm install
 npm run dev          # http://localhost:5173
-npm run serve        # build, then serve it the way GitHub Pages would
-npm run deploy       # publish to the gh-pages branch
+npm run serve        # build, then serve it like a static host would
 ```
 
 To enable Google sign-in, follow [docs/GOOGLE_SETUP.md](docs/GOOGLE_SETUP.md),
