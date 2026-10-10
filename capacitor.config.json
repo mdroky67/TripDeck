@@ -1,0 +1,12 @@
+{
+  "appId": "app.tripdeck.mobile",
+  "appName": "TripDeck",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  }
+}

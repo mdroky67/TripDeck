@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "id": "demo_local_sample",
+  "kind": "demo",
+  "title": "রাজশাহী → নাটোর",
+  "title_en": "Rajshahi → Natore",
+  "subtitle": "নমুনা লোকাল ট্রিপ · ২ দিন",
+  "subtitle_en": "Sample local trip · 2 days",
+  "scope": "local",
+  "status": "planned",
+  "startDate": "2026-12-05",
+  "endDate": "2026-12-06",
+  "travellers": 2,
+  "coverEmoji": "🚐",
+  "countries": [
+    "050"
+  ],
+  "districts": [
+    "Rajshahi",
+    "Natore"
+  ],
+  "currency": "BDT",
+  "origin": {
+    "lat": 24.3723,
+    "lng": 88.5631,
+    "label": "রাজশাহী",
+    "label_en": "Rajshahi",
+    "countryCode": "BD"
+  },
+  "stays": [
+    {
+      "id": "l_s1",
+      "name": "Garden View Rest House",
+      "stars": 3,
+      "breakfast": true,
+      "nights": 1,
+      "checkIn": "2026-12-05",
+      "checkOut": "2026-12-06",
+      "place": {
+        "lat": 24.4206,
+        "lng": 89.0003,
+        "label": "নাটোর",
+        "label_en": "Natore",
+        "countryCode": "BD"
+      }
+    }
+  ],
+  "days": [
+    {
+      "id": "l_d1",
+      "index": 1,
+      "date": "2026-12-05",
+      "title": "রাজশাহী → নাটোর",
+      "title_en": "Rajshahi → Natore",
+      "transport": "car",
+      "stayId": "l_s1",
+      "from": {
+        "lat": 24.3723,
+        "lng": 88.5631,
+        "label": "রাজশাহী",
+        "label_en": "Rajshahi",
+        "countryCode": "BD"
+      },
+      "to": {
+        "lat": 24.4206,
+        "lng": 89.0003,
+        "label": "নাটোর",
+        "label_en": "Natore",
+        "countryCode": "BD"
+      },
+      "activities": [
+        {
+          "id": "l_a1",
+          "title": "সকালে রওনা",
+          "title_en": "Set off in the morning",
+          "type": "transfer",
+          "icon": "🚐",
+          "optional": false,
+          "done": false,
+          "time": "08:00",
+          "place": {
+            "lat": 24.3723,
+            "lng": 88.5631,
+            "label": "রাজশাহী",
+            "label_en": "Rajshahi",
+            "countryCode": "BD"
+          }
+        },
+        {
+          "id": "l_a2",
+          "title": "পথে চা-বিরতি",
+          "title_en": "Tea break on the way",
+          "type": "meal",
+          "icon": "☕",
+          "optional": true,
+          "done": false,
+          "time": "09:15"
+        },
+        {
+          "id": "l_a3",
+          "title": "পুরনো রাজবাড়ি",
+          "title_en": "Old palace grounds",
+          "type": "sightseeing",
+          "icon": "🏛️",
+          "optional": false,
+          "done": false,
+          "time": "11:00",
+          "place": {
+            "lat": 24.4206,
+            "lng": 89.0003,
+            "label": "নাটোর",
+            "label_en": "Natore",
+            "countryCode": "BD"
+          }
+        },
+        {
+          "id": "l_a4",
+          "title": "হোটেল চেক-ইন",
+          "title_en": "Hotel check-in",
+          "type": "checkin",
+          "icon": "🏨",
+          "optional": false,
+          "done": false,
+          "time": "14:00"
+        },
+        {
+          "id": "l_a5",
+          "title": "স্থানীয় মিষ্টি",
+          "title_en": "Try the local sweets",
+          "type": "meal",
+          "icon": "🍬",
+          "optional": false,
+          "done": false,
+          "time": "17:00"
+        }
+      ]
+    },
+    {
+      "id": "l_d2",
+      "index": 2,
+      "date": "2026-12-06",
+      "title": "নাটোর → রাজশাহী",
+      "title_en": "Natore → Rajshahi",
+      "transport": "car",
+      "stayId": null,
+      "from": {
+        "lat": 24.4206,
+        "lng": 89.0003,
+        "label": "নাটোর",
+        "label_en": "Natore",
+        "countryCode": "BD"
+      },
+      "to": {
+        "lat": 24.3723,
+        "lng": 88.5631,
+        "label": "রাজশাহী",
+        "label_en": "Rajshahi",
+        "countryCode": "BD"
+      },
+      "activities": [
+        {
+          "id": "l_a6",
+          "title": "হোটেলে নাস্তা",
+          "title_en": "Breakfast at hotel",
+          "type": "meal",
+          "icon": "🍳",
+          "optional": false,
+          "done": false,
+          "time": "08:00"
+        },
+        {
+          "id": "l_a7",
+          "title": "হ্রদের ধারে হাঁটা",
+          "title_en": "Walk by the lake",
+          "type": "freetime",
+          "icon": "🌳",
+          "optional": false,
+          "done": false,
+          "time": "09:30",
+          "place": {
+            "lat": 24.4206,
+            "lng": 89.0003,
+            "label": "নাটোর",
+            "label_en": "Natore",
+            "countryCode": "BD"
+          }
+        },
+        {
+          "id": "l_a8",
+          "title": "দুপুরের খাবার",
+          "title_en": "Lunch",
+          "type": "meal",
+          "icon": "🍛",
+          "optional": false,
+          "done": false,
+          "time": "13:00"
+        },
+        {
+          "id": "l_a9",
+          "title": "ফেরা",
+          "title_en": "Head back",
+          "type": "transfer",
+          "icon": "🚐",
+          "optional": false,
+          "done": false,
+          "time": "15:30",
+          "place": {
+            "lat": 24.3723,
+            "lng": 88.5631,
+            "label": "রাজশাহী",
+            "label_en": "Rajshahi",
+            "countryCode": "BD"
+          }
+        }
+      ]
+    }
+  ],
+  "includes": [
+    "Sample data — replace with your own plan"
+  ],
+  "excludes": []
+}

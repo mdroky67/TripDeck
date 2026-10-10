@@ -1,0 +1,64 @@
+name: Build APK
+
+# Every push produces an APK. Download it from Actions → latest run → Artifacts.
+# Tagging v* also attaches it to a Release, which doesn't expire.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the web app (base is "/" inside an APK)
+        run: BASE=/ npm run build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+
+      - name: Capacitor sync
+        run: npx cap sync android
+
+      - name: Assemble with Gradle
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Name the file
+        run: |
+          mkdir -p out
+          SHORT=$(echo "$GITHUB_SHA" | cut -c1-7)
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/TripDeck-$SHORT.apk"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TripDeck-apk
+          path: out/*.apk
+          retention-days: 90
+
+      - name: Attach to the release when tagged
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          body: |
+            Download the APK and open it on the phone.
+            Android will ask for permission to install from unknown sources the first time.
