@@ -3,9 +3,65 @@ import { haversine } from './distance.js';
 import { saveTrack, loadTrack } from '../store/db.js';
 import { L } from '../i18n.js';
 
-let watchId = null, wakeLock = null, points = [], lastSaved = 0, armedNodeKey = null;
+let watchId = null, bgWatcher = null, wakeLock = null;
+let points = [], lastSaved = 0, armedNodeKey = null;
 
-export const isTracking = () => watchId !== null;
+export const isTracking = () => watchId !== null || bgWatcher !== null;
+export const isBackground = () => bgWatcher !== null;
+
+const isNative = () => !!globalThis.Capacitor?.isNativePlatform?.();
+
+/**
+ * Android keeps location alive for an app in the background only while a
+ * foreground service is running, and a foreground service must show a
+ * notification. That notification is not noise — it is the permission, and it
+ * is also how you see where you are headed without opening the app.
+ */
+async function startNative(tripId, { onArrive, label, minM } = {}) {
+  const { registerPlugin } = await import('@capacitor/core');
+  const BG = registerPlugin('BackgroundGeolocation');
+  bgWatcher = await BG.addWatcher(
+    {
+      backgroundTitle: label
+        ? L(`TripDeck · ${label}-এর পথে`, `TripDeck · heading to ${label}`)
+        : L('TripDeck · যাত্রা চলছে', 'TripDeck · trip in progress'),
+      backgroundMessage: L('দূরত্ব হিসাব করছে। থামাতে ট্যাপ করো।',
+                           'Measuring the distance. Tap to stop.'),
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: minM,
+    },
+    (location, error) => {
+      if (error || !location) {
+        if (error?.code === 'NOT_AUTHORIZED') {
+          toast(L('লোকেশনের অনুমতি দাওনি', 'Location permission denied'));
+          stop(tripId);
+        }
+        return;
+      }
+      record({
+        lat: location.latitude, lng: location.longitude,
+        accuracy: location.accuracy, speed: location.speed,
+        at: location.time || Date.now(),
+      }, tripId, onArrive);
+    },
+  );
+  return true;
+}
+
+/** One place where a fix is thinned, stored and handed on */
+function record(p, tripId, onArrive) {
+  fix.value = p;
+  const s = doc.value?.settings?.tracking || {};
+  const prev = points[points.length - 1];
+  const far = !prev || haversine(prev, p) * 1000 >= (s.minDistanceM ?? 25);
+  const old = !prev || p.at - prev.at >= (s.minIntervalSec ?? 30) * 1000;
+  if (far || old) {
+    points.push(p);
+    if (p.at - lastSaved > 15000) { lastSaved = p.at; saveTrack(tripId, points).catch(() => {}); }
+  }
+  if (onArrive) onArrive(p);
+}
 
 /**
  * Start GPS tracking.
@@ -13,34 +69,30 @@ export const isTracking = () => watchId !== null;
  * work around that. A wake lock is requested; tracking still runs without one,
  * it just needs the screen awake.
  */
-export async function start(tripId, { onArrive } = {}) {
-  if (watchId !== null) return true;
+export async function start(tripId, { onArrive, label } = {}) {
+  if (isTracking()) return true;
+  points = (await loadTrack(tripId)) || [];
+  const s = doc.value?.settings?.tracking || {};
+  const minM = s.minDistanceM ?? 25;
+
+  if (isNative()) {
+    try {
+      return await startNative(tripId, { onArrive, label, minM });
+    } catch (e) {
+      // Fall through to the browser API rather than leaving tracking dead
+      bgWatcher = null;
+    }
+  }
+
   if (!('geolocation' in navigator)) {
     toast(L('এই ডিভাইসে GPS নেই', 'No GPS on this device'));
     return false;
   }
-  points = (await loadTrack(tripId)) || [];
-  const s = doc.value?.settings?.tracking || {};
-  const minM = s.minDistanceM ?? 25;
-  const minS = s.minIntervalSec ?? 30;
-
   watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const p = {
-        lat: pos.coords.latitude, lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy, speed: pos.coords.speed,
-        at: Date.now(),
-      };
-      fix.value = p;
-      const prev = points[points.length - 1];
-      const far = !prev || haversine(prev, p) * 1000 >= minM;
-      const old = !prev || p.at - prev.at >= minS * 1000;
-      if (far || old) {
-        points.push(p);
-        if (p.at - lastSaved > 15000) { lastSaved = p.at; saveTrack(tripId, points).catch(() => {}); }
-      }
-      if (onArrive) onArrive(p);
-    },
+    (pos) => record({
+      lat: pos.coords.latitude, lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy, speed: pos.coords.speed, at: Date.now(),
+    }, tripId, onArrive),
     (err) => {
       toast(err.code === 1
         ? L('লোকেশনের অনুমতি দাওনি', 'Location permission denied')
@@ -55,6 +107,13 @@ export async function start(tripId, { onArrive } = {}) {
 
 export async function stop(tripId) {
   if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (bgWatcher !== null) {
+    try {
+      const { registerPlugin } = await import('@capacitor/core');
+      await registerPlugin('BackgroundGeolocation').removeWatcher({ id: bgWatcher });
+    } catch {}
+    bgWatcher = null;
+  }
   releaseWakeLock();
   if (tripId) await saveTrack(tripId, points).catch(() => {});
 }

@@ -38,6 +38,7 @@ export default function Live() {
     if (on) { await tracker.stop(t.id); setOn(false); setAwake(false); return; }
     await tracker.askNotify();
     const ok = await tracker.start(t.id, {
+      label: tx(live.to, 'label'),
       onArrive: (pos) => {
         const target = chain.nodes[chain.target];
         if (!target || !settings.alarms.enabled) return;
@@ -101,8 +102,11 @@ export default function Live() {
         </button>
       </div>
       <div class="muted" style="margin-top:-4px">
-        {L('ফোনের স্ক্রিন বন্ধ হলে ব্রাউজার GPS থামিয়ে দেয় — PWA-তে এটা এড়ানো যায় না। লম্বা পথে স্ক্রিন জাগিয়ে রাখো।',
-           'Browsers cut GPS when the screen sleeps; a PWA cannot avoid that. On long legs, keep the screen awake.')}
+        {tracker.isBackground()
+          ? L('অ্যাপ ছোট করলেও ট্র্যাকিং চলবে — উপরে নোটিফিকেশনে দেখা যাবে কোথায় যাচ্ছো। ঐ নোটিফিকেশনটাই অ্যান্ড্রয়েডের অনুমতি, তাই সরানো যায় না।',
+              'Tracking keeps running with the app minimised — the notification at the top shows where you are heading. That notification is what Android requires to allow it, so it cannot be hidden.')
+          : L('ব্রাউজারে স্ক্রিন বন্ধ হলে GPS থেমে যায়। ফোনের অ্যাপে (APK) ব্যাকগ্রাউন্ডেও চলে।',
+              'In a browser, GPS stops when the screen sleeps. The phone app keeps going in the background.')}
       </div>
 
       {arrived && (

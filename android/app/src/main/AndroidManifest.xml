@@ -48,6 +48,13 @@
     <!-- Arrival notification (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Tracking with the app in the background. Android only allows this
+         through a foreground service, and a foreground service must show a
+         notification — which doubles as the "where am I heading" display. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
     <!-- The keep-screen-awake toggle -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
