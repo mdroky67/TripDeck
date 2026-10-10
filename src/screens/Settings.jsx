@@ -145,13 +145,61 @@ export default function Settings() {
         </button>
       </Card>
 
-      <div class="muted" style="text-align:center;padding:8px 0 24px">
-        TripDeck · {L('সার্ভার নেই, হোস্টিং খরচ নেই', 'No server, no hosting cost')}
-      </div>
+      <OfflineCard />
+      <AboutCard />
     </div>
   );
 }
 
+
+/** What keeps working with no connection, and what does not. */
+function OfflineCard() {
+  const rows = [
+    ['✅', L('ট্রিপ, দিন, কাজ — দেখা, লেখা, টিক দেওয়া', 'Trips, days, activities — read, write, tick')],
+    ['✅', L('চেইন, দূরত্ব, অগ্রগতি, হিসাব', 'Chain, distances, progress, stats')],
+    ['✅', L('বিশ্ব ও জেলার ম্যাপ', 'World and district maps')],
+    ['✅', L('জরুরি নম্বর', 'Emergency numbers')],
+    ['✅', L('GPS ও পৌঁছানোর অ্যালার্ম', 'GPS and the arrival alarm')],
+    ['◐', L('ট্রিপের ম্যাপ — আগে যেটুকু দেখেছো, সেটুকু', 'Trip map — only the parts you already viewed')],
+    ['✕', L('সড়কপথের দূরত্ব (তখন সরলরেখার মাপ দেখায়)', 'Road distance (straight-line is shown instead)')],
+    ['✕', L('Drive-এ সেভ — ইন্টারনেট ফিরলে নিজে থেকেই হয়ে যায়', 'Saving to Drive — it catches up by itself')],
+  ];
+  return (
+    <Card>
+      <div class="eyebrow" style="margin-bottom:10px">📴 {L('অফলাইনে কী চলে', 'What works offline')}</div>
+      {rows.map(([m, t]) => (
+        <div key={t} class="row" style="gap:10px;align-items:flex-start;padding:4px 0">
+          <span style={{ width: '16px', flex: '0 0 auto', color:
+            m === '✅' ? 'var(--ok)' : m === '◐' ? 'var(--amber)' : 'var(--ink-3)' }}>{m}</span>
+          <span class="muted" style="flex:1;min-width:0">{t}</span>
+        </div>
+      ))}
+      <div class="muted" style="margin-top:10px">
+        {L('সব লেখা আগে ফোনে জমা হয়, তারপর সুযোগ পেলে Drive-এ যায়। তাই ইন্টারনেট না থাকলেও কিছু আটকায় না।',
+           'Every change is written to the phone first and only then sent to Drive, so nothing ever waits on a connection.')}
+      </div>
+    </Card>
+  );
+}
+
+function AboutCard() {
+  return (
+    <Card style="text-align:center">
+      <div style="font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.02em">TripDeck</div>
+      <div class="muted" style="margin-top:2px">
+        {L('সংস্করণ', 'Version')} {N(__APP_VERSION__)}
+      </div>
+      <div style="margin:12px 0 2px;font-weight:600">
+        {L('তৈরি করেছেন Roky', 'Developed by Roky')}
+      </div>
+      <div class="muted">{L('ফুল স্ট্যাক ডেভেলপার', 'Full stack developer')}</div>
+      <div class="muted" style="margin-top:12px">
+        {L('সার্ভার নেই, হোস্টিং খরচ নেই — ডেটা তোমার নিজের Google Drive-এ।',
+           'No server, no hosting cost — your data lives in your own Google Drive.')}
+      </div>
+    </Card>
+  );
+}
 
 /**
  * Paste a Google OAuth client ID. Stored in the user's own document, so a
