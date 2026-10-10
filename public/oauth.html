@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Returning to TripDeck</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #faf7f2; color: #2b2724; padding: 24px; text-align: center;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #16140f; color: #f0ece4; } }
+  a.btn {
+    display: inline-block; margin-top: 18px; padding: 13px 22px; border-radius: 10px;
+    background: #0f7c73; color: #fff; text-decoration: none; font-weight: 600;
+  }
+  p { max-width: 30ch; margin: 8px auto 0; }
+  .muted { opacity: .7; font-size: 14px; }
+</style>
+<h1>TripDeck</h1>
+<p id="msg">Signing you in…</p>
+<a class="btn" id="go" href="#" hidden>Open TripDeck</a>
+<p class="muted" id="hint" hidden>Tap the button to finish.</p>
+<script>
+  /* Google cannot send its answer straight into an installed app, so it lands
+     here and this page hands it on through the app's own URL scheme.
+     Nothing is stored or sent anywhere: the token lives in the fragment,
+     which browsers never put in a request. */
+  (function () {
+    var app = 'app.tripdeck.mobile:/oauth2redirect';
+    var payload = location.hash.slice(1) || location.search.slice(1);
+    var target = app + '#' + payload;
+    var go = document.getElementById('go');
+    go.href = target;
+
+    if (!payload) {
+      document.getElementById('msg').textContent =
+        'Nothing to hand over — open the sign-in from inside TripDeck.';
+      return;
+    }
+    // A browser may refuse to jump to an app without a tap; show the button either way.
+    try { location.replace(target); } catch (e) {}
+    setTimeout(function () {
+      document.getElementById('msg').textContent = 'Almost there.';
+      go.hidden = false;
+      document.getElementById('hint').hidden = false;
+    }, 900);
+  })();
+</script>

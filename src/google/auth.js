@@ -24,28 +24,29 @@ export const setClientId = (id) => { runtimeClientId = (id || '').trim(); };
 export const clientId = () => runtimeClientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 /**
- * Android needs its own OAuth client, tied to the package name and the signing
- * fingerprint. It has no secret — PKCE takes that role — and its redirect is a
- * custom scheme built by reversing the client ID.
- */
-let androidClientId = '';
-export const setAndroidClientId = (id) => { androidClientId = (id || '').trim(); };
-export const getAndroidClientId = () => androidClientId;
-
-const looksLikeId = (v) => /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(String(v || '').trim());
-export const isConfigured = () =>
-  isNative() ? looksLikeId(androidClientId) : looksLikeId(clientId());
-
-/**
- * Android clients redirect to the package name, not to a reversed client id —
- * that form belongs to iOS clients, and Google answers an Android request made
- * with it with a flat "request is invalid".
+ * The phone uses the same **Web** client as the browser does.
  *
- *   Android : app.tripdeck.mobile:/oauth2redirect
- *   iOS     : com.googleusercontent.apps.<id>:/oauth2redirect
+ * Google's "Android" client type cannot be used here at all: it is wired to
+ * Play Services, and the authorization endpoint rejects it whatever redirect
+ * is sent — package-name scheme, reversed client id and loopback all come back
+ * as "Access blocked: TripDeck's request is invalid", while the Web client
+ * answers the identical request with a normal sign-in page.
  */
 export const ANDROID_PACKAGE = 'app.tripdeck.mobile';
-const androidRedirect = () => `${ANDROID_PACKAGE}:/oauth2redirect`;
+
+/**
+ * Where Google sends its answer on the phone.
+ *
+ * An installed app cannot be a redirect target, so Google returns to a one-page
+ * site that forwards the fragment on through the app's own URL scheme. The
+ * token travels in the fragment, which a browser never sends to a server, so
+ * that page sees it only in the phone's own memory.
+ */
+const BOUNCE = import.meta.env.VITE_OAUTH_BOUNCE
+  || 'https://mdroky67.github.io/TripDeck/oauth.html';
+
+const looksLikeId = (v) => /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(String(v || '').trim());
+export const isConfigured = () => looksLikeId(clientId());
 
 function gsiReady() {
   return new Promise((resolve, reject) => {
@@ -131,43 +132,39 @@ function readRedirect() {
   return { ok: true };
 }
 
-/* ---------------- PKCE in the system browser (native) ----------------
+/* ---------------- system browser + bounce page (native) ----------------
  * Google refuses OAuth inside an embedded WebView, and a popup cannot hand its
- * result back from one. The supported route for a native app is: open the real
- * browser, come back through a custom scheme, and prove ownership of the
- * request with PKCE instead of a secret the app cannot keep.
+ * result back from one, so the real browser does the signing in.
+ *
+ * The code flow is not open to us: exchanging a code needs the Web client's
+ * secret, which an installed app cannot keep. So the browser is asked for the
+ * token directly and hands it back through the bounce page. There is no
+ * refresh token with this flow — an expired session asks for a tap again.
  */
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)))
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-async function pkcePair() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const verifier = b64url(bytes);
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return { verifier, challenge: b64url(digest) };
-}
-
-let pending = null;                        // { verifier, state, resolve, reject }
+let pending = null;                        // { state, resolve, reject }
 
 async function signInNative() {
-  if (!looksLikeId(androidClientId)) throw new Error('No Android client ID configured');
+  const id = clientId();
+  if (!looksLikeId(id)) throw new Error('No Google client ID configured');
   const { Browser } = await import('@capacitor/browser');
   const { App } = await import('@capacitor/app');
-  const { verifier, challenge } = await pkcePair();
   const state = b64url(crypto.getRandomValues(new Uint8Array(12)));
 
   const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
-    client_id: androidClientId,
-    redirect_uri: androidRedirect(),
-    response_type: 'code',
+    client_id: id,
+    redirect_uri: BOUNCE,
+    response_type: 'token',
     scope: SCOPES,
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
+    include_granted_scopes: 'true',
+    prompt: 'consent',
     state,
   });
 
   return new Promise(async (resolve, reject) => {
-    pending = { verifier, state, resolve, reject };
+    pending = { state, resolve, reject };
     let handle;
     const done = async (fn) => {
       try { await handle?.remove(); } catch {}
@@ -177,10 +174,11 @@ async function signInNative() {
     };
     handle = await App.addListener('appUrlOpen', ({ url: back }) => {
       if (!back || !back.startsWith(`${ANDROID_PACKAGE}:`)) return;
-      exchange(back).then(
-        (t) => done(() => resolve(t)),
-        (e) => done(() => reject(e)),
-      );
+      try {
+        done(() => resolve(takeToken(back)));
+      } catch (e) {
+        done(() => reject(e));
+      }
     });
     // Closing the tab without finishing should not leave the caller hanging
     const closed = await App.addListener('resume', () => {
@@ -194,54 +192,23 @@ async function signInNative() {
   });
 }
 
-async function exchange(backUrl) {
-  const q = new URLSearchParams(backUrl.split('?')[1] || '');
-  if (q.get('error')) throw new Error(q.get('error'));
-  if (pending?.state && q.get('state') && q.get('state') !== pending.state) {
+/** Read the token out of the URL the bounce page sent back. */
+function takeToken(backUrl) {
+  const frag = backUrl.split('#')[1] || backUrl.split('?')[1] || '';
+  const p = new URLSearchParams(frag);
+  if (p.get('error')) throw new Error(p.get('error'));
+  if (pending?.state && p.get('state') && p.get('state') !== pending.state) {
     throw new Error('state_mismatch');
   }
-  const code = q.get('code');
-  if (!code) throw new Error('no_code');
-
-  const r = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: androidClientId,
-      code,
-      code_verifier: pending.verifier,
-      grant_type: 'authorization_code',
-      redirect_uri: androidRedirect(),
-    }),
-  });
-  if (!r.ok) throw new Error(`token_exchange_failed_${r.status}`);
-  const j = await r.json();
-  token = j.access_token;
-  expiresAt = Date.now() + ((j.expires_in || 3600) - 60) * 1000;
-  if (j.refresh_token) refreshToken = j.refresh_token;
+  const t = p.get('access_token');
+  if (!t) throw new Error('no_token');
+  token = t;
+  expiresAt = Date.now() + (Number(p.get('expires_in') || 3600) - 60) * 1000;
   return token;
 }
 
-let refreshToken = null;
-
-/** Android clients get a refresh token, so renewing needs no browser at all. */
-async function renewNative() {
-  if (!refreshToken) throw new Error('silent_unavailable');
-  const r = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: androidClientId,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!r.ok) throw new Error('refresh_failed');
-  const j = await r.json();
-  token = j.access_token;
-  expiresAt = Date.now() + ((j.expires_in || 3600) - 60) * 1000;
-  return token;
-}
+/** No refresh token in this flow, so a quiet renewal is not on offer. */
+async function renewNative() { throw new Error('silent_unavailable'); }
 
 export async function signIn({ silent = false } = {}) {
   if (isNative()) {

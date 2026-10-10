@@ -46,41 +46,30 @@ app as different things and will not accept one in place of the other.
   ```
 - **Authorized redirect URIs** — required for the APK:
   ```
-  https://localhost
+  https://<your-user>.github.io/TripDeck/oauth.html
   ```
-  In a browser the sign-in happens in a popup and needs no redirect URI. Inside
-  an Android WebView a popup cannot hand its result back, so the app redirects
-  itself to Google and comes back to `https://localhost` — which is the
-  WebView's own address — with the token in the URL fragment.
+  In a browser the sign-in happens in a popup and needs no redirect URI. The
+  phone cannot be a redirect target at all, so Google returns to that one-page
+  site, which forwards the answer into the app through its own URL scheme.
+  `oauth.html` ships with the site; publishing the Pages site is enough.
 - Create, then copy the **client ID** (`…apps.googleusercontent.com`).
 
-### 3b — Android (the APK)
+### 3b — the APK uses the same Web client
 
-**Credentials → Create credentials → OAuth client ID → Android**
+There is nothing more to create. The phone and the browser share one Web
+client ID, and the redirect URI added above is what makes the APK work.
 
-- Package name: `app.tripdeck.mobile`
-- SHA-1 certificate fingerprint: the one printed when the signing key was made
-  (`private/signing/CREDENTIALS.txt`)
+> **Do not create an "Android" client for this.** That client type is wired to
+> Play Services and the authorization endpoint refuses it outright — every
+> redirect form (package-name scheme, reversed client id, loopback) comes back
+> as *"Access blocked: TripDeck's request is invalid"*, with no hint as to why,
+> while the Web client answers the identical request with a sign-in page.
 
-An Android client has **no secret** — PKCE takes its place — and its redirect
-is the **package name**:
-
-```
-app.tripdeck.mobile:/oauth2redirect
-```
-
-Nothing to register and nothing to configure: Google derives it from the
-package name already entered above, and Gradle fills the app's intent filter
-from the same `applicationId`. The two therefore cannot drift apart.
-
-> **Not the reversed client ID.** `com.googleusercontent.apps.<id>:/…` is the
-> **iOS** form. Sending it from an Android client makes Google answer with a
-> bare *"Access blocked: TripDeck's request is invalid"* — no hint as to which
-> parameter it disliked.
-
-> The fingerprint belongs to the key that signs the APK. If that key ever
-> changes, Google stops recognising the app and sign-in fails — which is why
-> release builds use a fixed keystore rather than a throwaway debug key.
+The phone asks Google for a token directly rather than for a code, because
+exchanging a code needs the Web client's secret and an installed app has
+nowhere safe to keep one. The cost of that choice: **no refresh token**, so a
+session lasts about an hour and then asks for a tap. The data itself is
+unaffected — it sits in Drive and comes back on the next sign-in.
 
 ## Step 4 — put it in the app
 
@@ -207,19 +196,19 @@ Three approaches were tried, and only the third works:
 |---|---|
 | Google's popup (the GIS library) | A WebView has no way to hand a popup's result back to its opener. The login succeeded and the popup sat there blank. |
 | Redirecting the WebView itself | Capacitor sends external URLs to the system browser, so Google came back to `https://localhost` in Chrome, which cannot reach it. Google also blocks OAuth inside embedded WebViews outright. |
-| **System browser + PKCE + custom scheme** | Works. This is what Google documents for native apps. |
+| System browser + PKCE + an Android client | Google refuses the Android client type at the authorization endpoint, whatever the redirect. |
+| **System browser + Web client + bounce page** | Works. |
 
 The flow:
 
 ```
 app → Chrome Custom Tab → accounts.google.com
-    → app.tripdeck.mobile:/oauth2redirect?code=…
-    → app exchanges the code for a token, proving it with the PKCE verifier
+    → https://<user>.github.io/TripDeck/oauth.html#access_token=…
+    → app.tripdeck.mobile:/oauth2redirect#access_token=…
+    → app reads the token out of the fragment
 ```
 
-PKCE replaces the client secret an app cannot keep: the app sends a hash of a
-random string up front and the string itself at exchange time, so an
-intercepted code is useless to anyone else.
-
-The Android client also returns a **refresh token**, so an expired session
-renews without opening a browser at all.
+The token rides in the **fragment**, which a browser never puts in a request,
+so it reaches the bounce page only inside the phone's own memory — the server
+hosting that page never sees it. A `state` value generated before the browser
+opens is checked on the way back, so a link someone else crafts is ignored.
