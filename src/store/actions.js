@@ -336,15 +336,44 @@ export async function loadDemo() {
   toast(L('ডেমো ট্রিপ ঢুকেছে', 'Demo trips loaded'));
 }
 
-export function exportDoc() {
+const isNative = () => !!globalThis.Capacitor?.isNativePlatform?.();
+
+/**
+ * Save the whole document as a .json file.
+ *
+ * In a browser an <a download> is enough. Inside the Android WebView it is not:
+ * blob: downloads are silently dropped there, so the file is written to the
+ * app's documents folder and handed to the system share sheet instead.
+ */
+export async function exportDoc() {
   const data = JSON.stringify(doc.value, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+  const name = `tripdeck-${localDate()}.json`;
+
+  if (isNative()) {
+    const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([
+      import('@capacitor/filesystem'),
+      import('@capacitor/share'),
+    ]);
+    await Filesystem.writeFile({
+      path: name, data, directory: Directory.Documents, encoding: Encoding.UTF8,
+      recursive: true,
+    });
+    const { uri } = await Filesystem.getUri({ path: name, directory: Directory.Documents });
+    try {
+      await Share.share({ title: name, text: L('TripDeck-এর ব্যাকআপ', 'TripDeck backup'), url: uri });
+    } catch {
+      // The share sheet was dismissed — the file is still saved.
+    }
+    return { saved: true, where: 'Documents/' + name };
+  }
+
+  const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tripdeck-${localDate()}.json`;
+  a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return { saved: true, where: name };
 }
 
 /** Import preview: what would be added, before anything is merged */

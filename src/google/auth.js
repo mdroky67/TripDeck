@@ -3,15 +3,26 @@
  * The token lives in memory only, never in localStorage (XSS risk).
  * docs/GOOGLE_SETUP.md
  */
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const SCOPES = [
   'https://www.googleapis.com/auth/drive.appdata',
   'openid', 'email', 'profile',
 ].join(' ');
 
 let token = null, expiresAt = 0, client = null;
+let runtimeClientId = '';
 
-export const isConfigured = () => !!CLIENT_ID;
+/**
+ * The client ID can come from two places, in this order:
+ *   1. whatever the user pasted into Settings (stored in their document)
+ *   2. VITE_GOOGLE_CLIENT_ID baked in at build time
+ *
+ * Keeping (1) means a downloaded APK can be pointed at the user's own Google
+ * project without rebuilding anything, and the repository never has to carry
+ * a project-specific value.
+ */
+export const setClientId = (id) => { runtimeClientId = (id || '').trim(); };
+export const clientId = () => runtimeClientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+export const isConfigured = () => /\.apps\.googleusercontent\.com$/.test(clientId());
 
 function gsiReady() {
   return new Promise((resolve, reject) => {
@@ -26,11 +37,12 @@ function gsiReady() {
 }
 
 export async function signIn({ silent = false } = {}) {
-  if (!CLIENT_ID) throw new Error('VITE_GOOGLE_CLIENT_ID বসানো হয়নি');
+  const id = clientId();
+  if (!id) throw new Error('No Google client ID configured');
   await gsiReady();
   return new Promise((resolve, reject) => {
     client = window.google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
+      client_id: id,
       scope: SCOPES,
       prompt: silent ? '' : 'consent',
       callback: (res) => {

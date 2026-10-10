@@ -8,6 +8,7 @@ import { L, N, NF, tx, dname, fmtDate } from '../i18n.js';
 import { localDate } from '../store/schema.js';
 import { Empty, Bar } from '../ui/bits.jsx';
 import Picker from '../ui/Picker.jsx';
+import { pickAndImport } from '../ui/importFile.jsx';
 
 const progress = (t) => {
   const req = (t.days || []).flatMap((d) => (d.activities || []).filter((a) => !a.optional));
@@ -57,6 +58,9 @@ export default function Trips() {
             </button>
             <button class="btn ghost" onClick={() => loadDemo().catch(() => toast(L('ডেমো আনা যায়নি', 'Could not load demo')))}>
               {L('ডেমো ঢোকাও', 'Load demo')}
+            </button>
+            <button class="btn ghost" onClick={pickAndImport}>
+              ⬆ {L('ফাইল থেকে আনো', 'Import a file')}
             </button>
           </div>
         </Empty>

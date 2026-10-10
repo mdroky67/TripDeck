@@ -2,6 +2,7 @@ import { signal, computed, effect } from '@preact/signals';
 import { createDoc, migrate, nowISO, deviceId } from './schema.js';
 import { loadDoc, saveDoc } from './db.js';
 import { lang } from '../i18n.js';
+import { setClientId } from '../google/auth.js';
 
 /* ---------- signals ---------- */
 export const doc      = signal(null);                 // null = not loaded yet
@@ -83,6 +84,7 @@ export async function boot() {
   let d = null;
   try { d = await loadDoc(); } catch {}
   doc.value = d ? migrate(d) : createDoc();
+  setClientId(doc.value.profile.googleClientId);
   lang.value = doc.value.profile.lang || 'en';
   theme.value = doc.value.profile.theme || 'light';
   applyTheme(theme.value);

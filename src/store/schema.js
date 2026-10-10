@@ -27,6 +27,7 @@ export function createDoc(profile = {}) {
     profile: {
       name: '', email: '', picture: '',
       homeBase: { lat: 23.8103, lng: 90.4125, label: 'ঢাকা', label_en: 'Dhaka', countryCode: 'BD' },
+      googleClientId: '',        // set in Settings; overrides the build-time value
       units: 'km',
       lang: 'en',
       theme: 'light',

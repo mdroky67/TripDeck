@@ -11,8 +11,9 @@ npm run serve        # build, then serve it like a static host would
 ```
 
 To enable Google sign-in, follow [docs/GOOGLE_SETUP.md](docs/GOOGLE_SETUP.md),
-then copy `.env.example` to `.env` and put your client ID in it. The app works
-fine without signing in — the data just stays on that one device.
+then paste the client ID into ⚙︎ Settings — no rebuild needed, which is how a
+downloaded APK gets configured too. For local work, `.env` does the same job.
+The app works fine without signing in; the data just stays on that one device.
 
 **Android APK:** every `git push` builds one in CI. Actions → latest run →
 Artifacts → `TripDeck-apk`. See [APK.md](APK.md).

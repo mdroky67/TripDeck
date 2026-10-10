@@ -164,7 +164,10 @@ function SyncPanel() {
       </div>
       {s.error && <div class="muted" style="margin-top:6px;color:var(--danger)">{s.error}</div>}
       <div class="row" style="gap:8px;margin-top:12px">
-        <button class="btn ghost sm" style="flex:1" onClick={() => { exportDoc(); toast(L('ফাইল নামছে', 'Downloading')); }}>
+        <button class="btn ghost sm" style="flex:1" onClick={async () => {
+          try { const r = await exportDoc(); toast(L(`সেভ হয়েছে: ${r.where}`, `Saved: ${r.where}`)); }
+          catch { toast(L('ফাইল সেভ করা যায়নি', 'Could not save the file')); }
+        }}>
           ⬇ Export
         </button>
         <button class="btn ghost sm" style="flex:1" onClick={() => setUI({ tab: 'settings' })}>

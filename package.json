@@ -11,6 +11,8 @@
     "deploy": "npm run build && npx -y gh-pages@6.3.0 -d dist"
   },
   "dependencies": {
+    "@capacitor/filesystem": "^7.1.4",
+    "@capacitor/share": "^7.0.2",
     "@preact/signals": "^2.11.3",
     "idb-keyval": "^6.3.0",
     "leaflet": "^1.9.4",
