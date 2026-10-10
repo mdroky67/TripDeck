@@ -102,6 +102,16 @@ export const createPlace = (lat, lng, label, label_en, countryCode = 'BD') => ({
   lat, lng, label, label_en, countryCode,
 });
 
+export function createStay(p = {}) {
+  return {
+    id: uid('stay'), name: '', place: null,
+    checkIn: '', checkOut: '', nights: 1, stars: 3, breakfast: false,
+    confirmation: '', phone: '', cost: 0, currency: 'BDT', note: '',
+    updatedAt: nowISO(),
+    ...p,
+  };
+}
+
 export function createContact(p = {}) {
   return {
     id: uid('c'), role: '', role_en: '', name: '', name_en: '',

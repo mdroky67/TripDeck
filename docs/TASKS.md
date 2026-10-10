@@ -71,17 +71,27 @@
 - [x] Capacitor Android project, permissions, launcher icons
 - [x] GitHub Actions: APK on every push, Pages deploy, release on tag
 
+### P11 — After the first real use on a phone
+- [x] Search a place by name (Nominatim), so distances rest on a real point
+- [x] Map picker opens at street zoom and carries the same search
+- [x] Stays: add, edit, delete, reuse one across several nights
+- [x] Costs on activities, a trip budget, and a money card in Stats
+- [x] Drag-and-drop reordering, pointer events, handle only
+- [x] Client ID can be pasted in Settings — an APK needs no rebuild
+- [x] Export works inside the Android WebView
+- [x] Header clears the status bar on Android 15 edge-to-edge
+- [x] Per-leg transport in the chain
+
 ## ⏳ Open
 
-- [ ] Put the real Google client ID in `.env` and in the CI secret
-- [ ] First deploy, then add that origin in the Google console
-- [ ] Bengali names for the remaining ~100 countries
-- [ ] A real `id → continent` table (currently guessed from the centroid)
-- [ ] UI for adding and editing stays (only demo trips have them)
-- [ ] Budget and expenses
-- [ ] Per-day photos, stored on Drive
-- [ ] Drag-and-drop reordering (currently ↑↓ buttons)
+- [ ] **Google sign-in inside the APK.** Needs an Android OAuth client, which
+      needs a stable signing key, which needs a committed or secret keystore.
+      Deferred by choice; file export/import covers backup meanwhile.
+- [ ] **Background GPS** — same keystore question, plus
+      `@capacitor-community/background-geolocation`
+- [ ] Per-day photos
 - [ ] Time-based alarms (only arrival alarms exist)
 - [ ] Download a map region for offline (currently only what you have viewed)
-- [ ] Capacitor background-geolocation plugin, for tracking with the screen off
-- [ ] Signed release APK (the CI builds a debug APK)
+- [ ] Bengali names for the remaining ~100 countries
+- [ ] A real `id → continent` table (currently guessed from the centroid)
+- [ ] Signed release APK (CI builds a debug APK)

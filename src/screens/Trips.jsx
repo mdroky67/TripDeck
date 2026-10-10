@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { doc, ui, setUI, setTrip, openSheet, closeSheet, toast, syncState, online } from '../store/state.js';
-import { addTrip, addPastTrip, loadDemo, setTripStatus, deleteTrip } from '../store/actions.js';
+import { addTrip, addPastTrip, loadDemo, setTripStatus, deleteTrip, updateTrip } from '../store/actions.js';
 import { chainOf } from '../geo/chain.js';
 import { tripKm } from '../geo/distance.js';
 import { districts as loadDistricts, countries as loadCountries } from '../geo/data.js';
 import { L, N, NF, tx, dname, fmtDate } from '../i18n.js';
 import { localDate } from '../store/schema.js';
-import { Empty, Bar } from '../ui/bits.jsx';
+import { Card, Empty, Bar } from '../ui/bits.jsx';
 import Picker from '../ui/Picker.jsx';
 import { pickAndImport } from '../ui/importFile.jsx';
 
@@ -305,6 +305,8 @@ function PastTripSheet() {
 
 function TripMenu({ trip }) {
   const [confirm, setConfirm] = useState(false);
+  const [budget, setBudget] = useState(trip?.budget?.planned || 0);
+  const [cur, setCur] = useState(trip?.currency || 'BDT');
   if (!trip) return null;
   return (
     <>
@@ -321,6 +323,27 @@ function TripMenu({ trip }) {
           {L('“শেষ” করলে এই ট্রিপের দেশ ও জেলা নিজে থেকেই স্কোরবোর্ডে যোগ হবে।',
              'Marking it “Done” adds this trip’s countries and districts to the scoreboard.')}
         </div>
+        <Card>
+          <div class="eyebrow" style="margin-bottom:8px">💰 {L('বাজেট', 'Budget')}</div>
+          <div class="row" style="gap:8px">
+            <label class="fld" style="flex:1;margin:0"><span>{L('কত খরচ করার ইচ্ছা', 'What you plan to spend')}</span>
+              <input type="number" inputMode="decimal" min="0" value={budget}
+                onInput={(e) => setBudget(e.currentTarget.value)} /></label>
+            <label class="fld" style="width:110px;margin:0"><span>{L('মুদ্রা', 'Currency')}</span>
+              <select value={cur} onChange={(e) => setCur(e.currentTarget.value)}>
+                {['BDT','USD','EUR','INR','THB','LKR','MVR','GBP','AED','SAR','MYR','NPR'].map((c) =>
+                  <option key={c} value={c}>{c}</option>)}
+              </select></label>
+          </div>
+          <button class="btn sm block" style="margin-top:10px" onClick={() => {
+            updateTrip(trip.id, { budget: { ...trip.budget, planned: Number(budget) || 0 }, currency: cur });
+            toast(L('বাজেট সেভ হয়েছে', 'Budget saved'));
+          }}>{L('সেভ', 'Save')}</button>
+          <div class="muted" style="margin-top:8px">
+            {L('খরচ গোনা হয় তোমার লেখা দাম থেকেই — অ্যাপ কোনো দাম অনুমান করে না।',
+               'Spending is only ever what you entered — the app never estimates a price.')}
+          </div>
+        </Card>
         {!confirm ? (
           <button class="btn ghost" onClick={() => setConfirm(true)}>
             🗑 {L('ট্রিপ মুছে ফেলো', 'Delete trip')}

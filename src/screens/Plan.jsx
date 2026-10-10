@@ -3,6 +3,7 @@ import { doc, ui, setUI, openSheet, closeSheet, toast, activeTrip, fix } from '.
 import {
   addDay, addActivity, updateActivity, deleteActivity, toggleActivity, moveActivity,
   updateDay, deleteDay, addContact, updateContact, deleteContact,
+  addStay, updateStay, deleteStay, setDayStay, reorderActivity,
 } from '../store/actions.js';
 import { chainOf, liveOf } from '../geo/chain.js';
 import { legKm, tripKm, roadDistance, haversine } from '../geo/distance.js';
@@ -10,6 +11,8 @@ import { districts as loadDistricts, countries as loadCountries } from '../geo/d
 import { KIND_META } from '../data/emergency.js';
 import { L, N, NF, tx, dname, fmtDate, fmtTime } from '../i18n.js';
 import { Card, Empty, Bar, Seg, copyText } from '../ui/bits.jsx';
+import { money } from '../store/money.js';
+import { useReorder } from '../ui/useReorder.js';
 import Chain, { NodeDetail, TRANSPORT_ICON } from '../ui/Chain.jsx';
 import MapView from '../ui/MapView.jsx';
 import MapPicker from '../ui/MapPicker.jsx';
@@ -70,6 +73,14 @@ export default function Plan() {
 /* ---------------- list ---------------- */
 function ListView({ trip }) {
   const u = ui.value;
+  const dayForDrag = trip.days[Math.min(u.dayIdx, trip.days.length - 1)];
+  const { rowProps, handleProps } = useReorder({
+    count: dayForDrag?.activities.length || 0,
+    onDrop: (from, to) => {
+      reorderActivity(trip.id, dayForDrag.id, from, to);
+      if (navigator.vibrate) navigator.vibrate(12);
+    },
+  });
   const idx = Math.min(u.dayIdx, trip.days.length - 1);
   const day = trip.days[idx];
   const [road, setRoad] = useState(null);
@@ -140,8 +151,8 @@ function ListView({ trip }) {
                    'Nothing here yet. Add an activity with the button below.')}
               </div>
             )}
-            {day.activities.map((a) => (
-              <div key={a.id} class={`act ${a.done ? 'on' : ''}`}>
+            {day.activities.map((a, i) => (
+              <div key={a.id} {...rowProps(i)} class={`act ${a.done ? 'on' : ''}`}>
                 <input type="checkbox" checked={a.done}
                   aria-label={tx(a, 'title')}
                   onChange={(e) => toggleActivity(trip.id, day.id, a.id, e.currentTarget.checked)} />
@@ -153,9 +164,16 @@ function ListView({ trip }) {
                     <><br /><span class="muted" style="font-size:11.5px">📍 {tx(a.place, 'label')}</span></>
                   )}
                 </button>
-                {a.optional
-                  ? <span class="chip amber">{L('নিজ খরচ', 'Own cost')}</span>
-                  : a.cost?.included ? <span class="chip teal">{L('টিকিট ✓', 'Ticket ✓')}</span> : null}
+                {a.cost?.amount > 0 && (
+                  <span class={`chip ${a.cost.included ? 'teal' : ''}`}>
+                    {money(a.cost.amount, trip.currency)}{a.cost.included ? ' ✓' : ''}
+                  </span>
+                )}
+                {a.optional && <span class="chip amber">{L('ঐচ্ছিক', 'Optional')}</span>}
+                {day.activities.length > 1 && (
+                  <button class="grip" {...handleProps(i)}
+                    aria-label={L('টেনে সরাও', 'Drag to reorder')}>⠿</button>
+                )}
               </div>
             ))}
           </div>
@@ -165,20 +183,27 @@ function ListView({ trip }) {
           </button>
         </Card>
 
-        {stay && (
+        {stay ? (
           <Card>
-            <div class="row" style="gap:12px">
+            <button class="rowbtn"
+              onClick={() => openSheet(() => <StaySheet trip={trip} day={day} stay={stay} />)}>
               <span style="font-size:22px">🏨</span>
-              <div style="flex:1;min-width:0">
-                <div class="eyebrow">{L('রাত্রিযাপন', 'Overnight')}</div>
-                <div style="font-weight:600">{stay.name}</div>
-                <div class="muted">
-                  {tx(stay.place, 'label')} · {'★'.repeat(stay.stars || 3)}
+              <span style="flex:1;min-width:0">
+                <span class="eyebrow" style="display:block">{L('রাত্রিযাপন', 'Overnight')}</span>
+                <span style="font-weight:600;display:block">{stay.name} ✎</span>
+                <span class="muted" style="display:block">
+                  {stay.place ? tx(stay.place, 'label') + ' · ' : ''}{'★'.repeat(stay.stars || 3)}
                   {stay.breakfast ? ' · ' + L('নাস্তা আছে', 'breakfast included') : ''}
-                </div>
-              </div>
-            </div>
+                  {stay.cost > 0 ? ` · ${trip.currency || ''} ${N(stay.cost)}` : ''}
+                </span>
+              </span>
+            </button>
           </Card>
+        ) : (
+          <button class="btn ghost sm block"
+            onClick={() => openSheet(() => <StaySheet trip={trip} day={day} />)}>
+            🏨 + {L('রাত কোথায় থাকবে', 'Where are you sleeping')}
+          </button>
         )}
       </div>
     </>
@@ -449,6 +474,8 @@ function ActivitySheet({ trip, day, act }) {
   const [time, setTime] = useState(act?.time || '');
   const [icon, setIcon] = useState(act?.icon || '📍');
   const [optional, setOptional] = useState(!!act?.optional);
+  const [cost, setCost] = useState(act?.cost?.amount || 0);
+  const [included, setIncluded] = useState(!!act?.cost?.included);
   const [note, setNote] = useState(act?.note || '');
   const [placeKey, setPlaceKey] = useState('');
   const [placeList, setPlaceList] = useState([]);
@@ -465,7 +492,10 @@ function ActivitySheet({ trip, day, act }) {
         ? { lat: o.lat, lng: o.lng, label: o.bn, label_en: o.en,
             countryCode: trip.scope === 'local' ? 'BD' : o.id }
         : (act?.place || null);
-    const data = { title: title.trim(), title_en: title.trim(), time, icon, optional, note, place };
+    const data = {
+      title: title.trim(), title_en: title.trim(), time, icon, optional, note, place,
+      cost: { amount: Number(cost) || 0, currency: trip.currency || 'BDT', included },
+    };
     if (act) updateActivity(trip.id, day.id, act.id, data);
     else addActivity(trip.id, day.id, { ...data, type: 'activity' });
     closeSheet();
@@ -495,12 +525,21 @@ function ActivitySheet({ trip, day, act }) {
       {act?.place && !placeKey && !here && (
         <div class="muted" style="margin:-6px 0 11px">📍 {tx(act.place, 'label')}</div>
       )}
+      <label class="fld"><span>{L('খরচ', 'Cost')} ({trip.currency || 'BDT'})</span>
+        <input type="number" inputMode="decimal" value={cost} min="0"
+          onInput={(e) => setCost(e.currentTarget.value)} /></label>
+      <label class="fld">
+        <span class="inline">
+          <input type="checkbox" checked={included} onChange={(e) => setIncluded(e.currentTarget.checked)} />
+          {L('টিকিট আগেই কাটা / প্যাকেজে আছে', 'Already paid for, or part of a package')}
+        </span>
+      </label>
       <label class="fld"><span>{L('নোট', 'Note')}</span>
         <textarea value={note} onInput={(e) => setNote(e.currentTarget.value)} /></label>
       <label class="fld">
         <span class="inline">
           <input type="checkbox" checked={optional} onChange={(e) => setOptional(e.currentTarget.checked)} />
-          {L('নিজ খরচ (অগ্রগতিতে ধরবে না)', 'Own cost (not counted in progress)')}
+          {L('ঐচ্ছিক (অগ্রগতিতে ধরবে না)', 'Optional (not counted in progress)')}
         </span>
       </label>
       <div class="row" style="gap:8px">
@@ -517,6 +556,107 @@ function ActivitySheet({ trip, day, act }) {
               onClick={() => { moveActivity(trip.id, day.id, act.id, 1); closeSheet(); }}>↓</button>
           </>
         )}
+        <button class="btn" style="flex:1" onClick={save}>{L('সেভ', 'Save')}</button>
+      </div>
+    </>
+  );
+}
+
+/** A place to sleep: pinned to a day, reusable across several nights. */
+function StaySheet({ trip, day, stay }) {
+  const [name, setName] = useState(stay?.name || '');
+  const [stars, setStars] = useState(stay?.stars || 3);
+  const [breakfast, setBreakfast] = useState(!!stay?.breakfast);
+  const [cost, setCost] = useState(stay?.cost || 0);
+  const [phone, setPhone] = useState(stay?.phone || '');
+  const [conf, setConf] = useState(stay?.confirmation || '');
+  const [note, setNote] = useState(stay?.note || '');
+  const [here, setHere] = useState(null);
+  const others = (trip.stays || []).filter((x) => x.id !== stay?.id);
+
+  const save = () => {
+    if (!name.trim()) { toast(L('নাম লেখো', 'Give it a name')); return; }
+    const place = here
+      ? { lat: here.lat, lng: here.lng, label: here.name || name.trim(),
+          label_en: here.name || name.trim(),
+          countryCode: here.countryCode || (trip.scope === 'local' ? 'BD' : trip.countries?.[0]) }
+      : (stay?.place || day.to || null);
+    const data = {
+      name: name.trim(), stars: Number(stars) || 3, breakfast,
+      cost: Number(cost) || 0, currency: trip.currency, phone, confirmation: conf, note,
+      place, checkIn: day.date, checkOut: day.date,
+    };
+    if (stay) updateStay(trip.id, stay.id, data);
+    else addStay(trip.id, day.id, data);
+    closeSheet();
+    toast(L('সেভ হয়েছে', 'Saved'));
+  };
+
+  return (
+    <>
+      <h3>{stay ? L('হোটেল বদলাও', 'Edit the stay') : L('রাত কোথায় থাকবে', 'Where are you sleeping')}</h3>
+      {!stay && others.length > 0 && (
+        <>
+          <div class="eyebrow" style="margin-bottom:7px">
+            {L('আগের কোনোটাই আবার ব্যবহার করো', 'Reuse one you already added')}
+          </div>
+          <div class="pick" style="margin-bottom:12px">
+            {others.map((o) => (
+              <button key={o.id} type="button" onClick={() => {
+                setDayStay(trip.id, day.id, o.id); closeSheet();
+                toast(L('ঐ রাতে বসানো হলো', 'Set for that night'));
+              }}>🏨 {o.name}</button>
+            ))}
+          </div>
+        </>
+      )}
+      <label class="fld"><span>{L('হোটেলের নাম', 'Name')}</span>
+        <input value={name} onInput={(e) => setName(e.currentTarget.value)}
+          placeholder={L('যেমন: Riverside Guesthouse', 'e.g. Riverside Guesthouse')} /></label>
+
+      <div class="eyebrow" style="margin-bottom:7px">{L('কোথায়', 'Where')}</div>
+      <PlaceSearch near={day.to || day.from || trip.origin} onPick={setHere} />
+      <button class="btn ghost sm block" type="button" style="margin-bottom:10px"
+        onClick={() => openSheet(() => (
+          <MapPicker center={here || stay?.place || day.to} onPick={setHere} />
+        ))}>🗺️ {L('ম্যাপে বাছো', 'Pick on map')}</button>
+      {(here || stay?.place) && (
+        <div class="callout" style="margin-bottom:11px">
+          📍 <b>{here?.name || tx(stay?.place, 'label')}</b>
+          <span class="muted" style="display:block;font-size:12px">
+            {NF((here || stay.place).lat, 5)}, {NF((here || stay.place).lng, 5)}
+          </span>
+        </div>
+      )}
+
+      <div class="row" style="gap:8px">
+        <label class="fld" style="flex:1"><span>{L('তারা', 'Stars')}</span>
+          <select value={stars} onChange={(e) => setStars(e.currentTarget.value)}>
+            {[1,2,3,4,5].map((n) => <option key={n} value={n}>{'★'.repeat(n)}</option>)}
+          </select></label>
+        <label class="fld" style="flex:1"><span>{L('খরচ', 'Cost')} ({trip.currency})</span>
+          <input type="number" inputMode="decimal" value={cost}
+            onInput={(e) => setCost(e.currentTarget.value)} /></label>
+      </div>
+      <label class="fld"><span>{L('ফোন', 'Phone')}</span>
+        <input value={phone} inputMode="tel" onInput={(e) => setPhone(e.currentTarget.value)} /></label>
+      <label class="fld"><span>{L('বুকিং রেফারেন্স', 'Booking reference')}</span>
+        <input value={conf} onInput={(e) => setConf(e.currentTarget.value)} /></label>
+      <label class="fld"><span>{L('নোট', 'Note')}</span>
+        <textarea value={note} onInput={(e) => setNote(e.currentTarget.value)} /></label>
+      <label class="fld">
+        <span class="inline">
+          <input type="checkbox" checked={breakfast} onChange={(e) => setBreakfast(e.currentTarget.checked)} />
+          {L('নাস্তা অন্তর্ভুক্ত', 'Breakfast included')}
+        </span>
+      </label>
+      <div class="row" style="gap:8px">
+        {stay && (
+          <button class="btn ghost" onClick={() => {
+            deleteStay(trip.id, stay.id); closeSheet(); toast(L('মুছে ফেলা হয়েছে', 'Removed'));
+          }}>🗑</button>
+        )}
+        <button class="btn ghost" style="flex:1" onClick={closeSheet}>{L('বাতিল', 'Cancel')}</button>
         <button class="btn" style="flex:1" onClick={save}>{L('সেভ', 'Save')}</button>
       </div>
     </>

@@ -4,7 +4,8 @@ import { exportDoc } from '../store/actions.js';
 import { tripKm, legKm } from '../geo/distance.js';
 import { WORLD_COUNTRIES, BD_DISTRICTS, areaOf, WORLD_LAND_KM2 } from '../geo/places.js';
 import { L, N, NF, tx, fmtDate } from '../i18n.js';
-import { Card, Ring, Legend, Empty } from '../ui/bits.jsx';
+import { Card, Ring, Legend, Empty, Bar } from '../ui/bits.jsx';
+import { tripMoney, money } from '../store/money.js';
 import { Donut, Bars, Columns } from '../ui/Charts.jsx';
 
 const TYPES = [
@@ -44,6 +45,8 @@ export default function Stats() {
         </Empty>
       )}
 
+      {t && <MoneyCard trip={t} />}
+
       {years.length > 0 && (
         <Card>
           <div class="eyebrow" style="margin-bottom:10px">{L('বছরে নতুন দেশ', 'New countries per year')}</div>
@@ -65,6 +68,75 @@ export default function Stats() {
 
       <SyncPanel />
     </div>
+  );
+}
+
+/** Planned against committed, and where the money goes. */
+function MoneyCard({ trip }) {
+  const m = tripMoney(trip);
+  if (!m || (!m.planned && !m.committed)) {
+    return (
+      <Card>
+        <div class="eyebrow" style="margin-bottom:8px">💰 {L('খরচ', 'Money')}</div>
+        <div class="muted">
+          {L('কাজ ও হোটেলে দাম লিখলে এখানে হিসাব দেখা যাবে। বাজেট বসাতে Trips → ট্রিপের সেটিংস।',
+             'Put prices on activities and stays and the totals appear here. Set a budget in Trips → trip settings.')}
+        </div>
+      </Card>
+    );
+  }
+  const pct = m.planned ? Math.min(1, m.committed / m.planned) : 0;
+  const COLORS = { stays: 'var(--violet)', activities: 'var(--teal)' };
+  const NAMES = { stays: [L('হোটেল', 'Stays')], activities: [L('কাজ', 'Activities')] };
+  return (
+    <Card>
+      <div class="eyebrow" style="margin-bottom:10px">💰 {L('খরচ', 'Money')}</div>
+      <div class="row" style="gap:12px;align-items:baseline">
+        <span class="num" style="font-size:30px;font-family:var(--display)">{money(m.committed)}</span>
+        <span class="muted">{m.currency}{m.planned ? ` · ${L('বাজেট', 'of')} ${money(m.planned)}` : ''}</span>
+      </div>
+      {m.planned > 0 && (
+        <>
+          <div style="margin:10px 0 6px">
+            <Bar value={pct} color={m.over ? 'var(--danger)' : 'var(--teal)'} />
+          </div>
+          <div class="between">
+            <span class="muted">
+              {m.over
+                ? L('বাজেট ছাড়িয়ে গেছে', 'Over budget')
+                : L('এখনো বাকি', 'Still unspent')}
+            </span>
+            <span class="num" style={m.over ? 'color:var(--danger)' : ''}>
+              {money(Math.abs(m.left), m.currency)}
+            </span>
+          </div>
+        </>
+      )}
+      <div class="between" style="margin-top:8px">
+        <span class="muted">{L('যা দিয়ে ফেলেছো', 'Paid so far')}</span>
+        <span class="num">{money(m.spent, m.currency)}</span>
+      </div>
+      {m.included > 0 && (
+        <div class="between">
+          <span class="muted">{L('প্যাকেজে ধরা', 'Already covered')}</span>
+          <span class="num">{money(m.included, m.currency)}</span>
+        </div>
+      )}
+      {m.byKind.length > 0 && (
+        <div class="row" style="gap:14px;margin-top:12px">
+          <Donut slices={m.byKind.map((k) => ({ label: k.key, value: k.value, color: COLORS[k.key] }))} size={100} />
+          <div style="min-width:0;display:flex;flex-direction:column;gap:6px">
+            {m.byKind.map((k) => (
+              <span key={k.key} style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2)">
+                <i class="sw" style={{ background: COLORS[k.key] }} />
+                {NAMES[k.key]}
+                <b style="color:var(--ink);font-variant-numeric:tabular-nums">{money(k.value)}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

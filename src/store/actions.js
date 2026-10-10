@@ -1,5 +1,5 @@
 import { doc, edit, touch, setUI, setTrip, toast } from './state.js';
-import { createTrip, createDay, createActivity, createContact, uid, nowISO, localDate, migrate, looksLikeDoc } from './schema.js';
+import { createTrip, createDay, createActivity, createContact, createStay, uid, nowISO, localDate, migrate, looksLikeDoc } from './schema.js';
 import { haversine } from '../geo/distance.js';
 import { nearestDistrict, areaOf, continentOf } from '../geo/places.js';
 import { emergencyFor, BLANK_CONTACTS, BLANK_INTL } from '../data/emergency.js';
@@ -203,6 +203,21 @@ export function toggleActivity(tripId, dayId, actId, done, by = 'manual') {
   if (done && navigator.vibrate) navigator.vibrate(10);
 }
 
+/** Move an activity to an exact position — what dragging produces. */
+export function reorderActivity(tripId, dayId, from, to) {
+  if (from === to) return;
+  edit((d) => {
+    const t = d.trips.find((x) => x.id === tripId);
+    const day = t?.days.find((x) => x.id === dayId);
+    if (!day) return;
+    const list = day.activities;
+    if (from < 0 || from >= list.length || to < 0 || to >= list.length) return;
+    const [a] = list.splice(from, 1);
+    list.splice(to, 0, a);
+    touch(t);
+  });
+}
+
 export function moveActivity(tripId, dayId, actId, dir) {
   edit((d) => {
     const t = d.trips.find((x) => x.id === tripId);
@@ -213,6 +228,56 @@ export function moveActivity(tripId, dayId, actId, dir) {
     if (i < 0 || j < 0 || j >= day.activities.length) return;
     const [a] = day.activities.splice(i, 1);
     day.activities.splice(j, 0, a);
+    touch(t);
+  });
+}
+
+/* ---------------- stays ---------------- */
+
+/** Add a place to sleep and pin it to the given day. */
+export function addStay(tripId, dayId, data) {
+  let id = null;
+  edit((d) => {
+    const t = d.trips.find((x) => x.id === tripId);
+    if (!t) return;
+    const stay = createStay(data);
+    id = stay.id;
+    t.stays.push(stay);
+    const day = t.days.find((x) => x.id === dayId);
+    if (day) day.stayId = stay.id;
+    touch(t);
+  });
+  return id;
+}
+
+export function updateStay(tripId, stayId, patch) {
+  edit((d) => {
+    const t = d.trips.find((x) => x.id === tripId);
+    const s = t?.stays.find((x) => x.id === stayId);
+    if (!s) return;
+    Object.assign(s, patch, { updatedAt: nowISO() });
+    touch(t);
+  });
+}
+
+export function deleteStay(tripId, stayId) {
+  edit((d) => {
+    const t = d.trips.find((x) => x.id === tripId);
+    if (!t) return;
+    t.stays = t.stays.filter((x) => x.id !== stayId);
+    t.days.forEach((day) => { if (day.stayId === stayId) day.stayId = null; });
+    d.tombstones[stayId] = nowISO();
+    touch(t);
+  });
+}
+
+/** Reuse one hotel across several nights without duplicating it. */
+export function setDayStay(tripId, dayId, stayId) {
+  edit((d) => {
+    const t = d.trips.find((x) => x.id === tripId);
+    const day = t?.days.find((x) => x.id === dayId);
+    if (!day) return;
+    day.stayId = stayId || null;
     touch(t);
   });
 }
