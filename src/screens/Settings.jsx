@@ -206,24 +206,47 @@ function AboutCard() {
  * downloaded APK can point at their project without a rebuild.
  */
 function ClientIdField({ onDone }) {
-  const [v, setV] = useState(doc.value.profile.googleClientId || '');
-  const valid = /\.apps\.googleusercontent\.com$/.test(v.trim());
-  return (
+  const native = !!globalThis.Capacitor?.isNativePlatform?.();
+  const p = doc.value.profile;
+  const [web, setWeb] = useState(p.googleClientId || '');
+  const [android, setAndroid] = useState(p.googleAndroidClientId || '');
+  const okId = (v) => /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(v.trim());
+  const needed = native ? android : web;
+  const valid = okId(needed);
+
+  const Field = ({ label, hint, value, set }) => (
     <>
-      <label class="fld">
-        <span>{L('Google OAuth Client ID', 'Google OAuth client ID')}</span>
-        <input value={v} onInput={(e) => setV(e.currentTarget.value)} spellcheck={false}
+      <label class="fld" style="margin-bottom:4px">
+        <span>{label}</span>
+        <input value={value} onInput={(e) => set(e.currentTarget.value)} spellcheck={false}
           placeholder="1234567890-abcdef.apps.googleusercontent.com" />
       </label>
-      {v.trim() && !valid && (
+      <div class="muted" style="margin:0 0 11px">{hint}</div>
+    </>
+  );
+
+  return (
+    <>
+      {native ? (
+        <Field label={L('Android client ID', 'Android client ID')}
+          hint={L('Google Console → Credentials → OAuth client ID → Android',
+                  'Google Console → Credentials → OAuth client ID → Android')}
+          value={android} set={setAndroid} />
+      ) : (
+        <Field label={L('Web client ID', 'Web client ID')}
+          hint={L('Google Console → Credentials → OAuth client ID → Web application',
+                  'Google Console → Credentials → OAuth client ID → Web application')}
+          value={web} set={setWeb} />
+      )}
+      {needed.trim() && !valid && (
         <div class="muted" style="margin:-6px 0 11px;color:var(--danger)">
           {L('শেষে .apps.googleusercontent.com থাকতে হবে', 'It must end in .apps.googleusercontent.com')}
         </div>
       )}
       <button class="btn block" disabled={!valid} onClick={() => {
-        const id = v.trim();
-        auth.setClientId(id);
-        edit((d) => { d.profile.googleClientId = id; });
+        const w = web.trim(), a = android.trim();
+        auth.setClientId(w); auth.setAndroidClientId(a);
+        edit((d) => { d.profile.googleClientId = w; d.profile.googleAndroidClientId = a; });
         toast(L('সেভ হয়েছে — এবার লগইন করো', 'Saved — now sign in'));
         onDone?.();
       }}>{L('সেভ করো', 'Save')}</button>
@@ -235,8 +258,11 @@ function ClientIdForm() {
   return (
     <>
       <div class="muted" style="margin-bottom:12px">
-        {L('লগইন চালু করতে তোমার নিজের Google প্রজেক্টের Client ID লাগবে — docs/GOOGLE_SETUP.md দেখো। ১৫ মিনিটের কাজ, কোনো খরচ নেই।',
-           'Sign-in needs a client ID from your own Google project — see docs/GOOGLE_SETUP.md. Fifteen minutes, no cost.')}
+        {globalThis.Capacitor?.isNativePlatform?.()
+          ? L('ফোনের অ্যাপের জন্য Android ধরনের Client ID লাগে — ওয়েবেরটা এখানে চলবে না। docs/GOOGLE_SETUP.md দেখো।',
+              'The phone app needs an Android client ID — the web one will not work here. See docs/GOOGLE_SETUP.md.')
+          : L('লগইন চালু করতে তোমার নিজের Google প্রজেক্টের Client ID লাগবে — docs/GOOGLE_SETUP.md দেখো। ১৫ মিনিটের কাজ, কোনো খরচ নেই।',
+              'Sign-in needs a client ID from your own Google project — see docs/GOOGLE_SETUP.md. Fifteen minutes, no cost.')}
       </div>
       <ClientIdField />
       <div class="muted" style="margin-top:10px">

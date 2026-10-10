@@ -28,7 +28,12 @@ Platform**)
 - **Test users** → add your own Gmail address. Testing mode allows 100 of them,
   free, with no review. There is no reason to publish the app.
 
-## Step 3 — OAuth client ID
+## Step 3 — OAuth client IDs
+
+Two different clients are needed, because Google treats a browser and a phone
+app as different things and will not accept one in place of the other.
+
+### 3a — Web application (the browser build)
 
 **Credentials → Create credentials → OAuth client ID**
 
@@ -48,6 +53,29 @@ Platform**)
   itself to Google and comes back to `https://localhost` — which is the
   WebView's own address — with the token in the URL fragment.
 - Create, then copy the **client ID** (`…apps.googleusercontent.com`).
+
+### 3b — Android (the APK)
+
+**Credentials → Create credentials → OAuth client ID → Android**
+
+- Package name: `app.tripdeck.mobile`
+- SHA-1 certificate fingerprint: the one printed when the signing key was made
+  (`private/signing/CREDENTIALS.txt`)
+
+An Android client has **no secret** — PKCE takes its place — and its redirect
+is the client ID reversed:
+
+```
+com.googleusercontent.apps.<the id without .apps.googleusercontent.com>:/oauth2redirect
+```
+
+That scheme has to match the app's intent filter, which is filled at build time
+from the `GOOGLE_REDIRECT_SCHEME` secret, so nothing project-specific is
+committed.
+
+> The fingerprint belongs to the key that signs the APK. If that key ever
+> changes, Google stops recognising the app and sign-in fails — which is why
+> release builds use a fixed keystore rather than a throwaway debug key.
 
 ## Step 4 — put it in the app
 
@@ -163,3 +191,30 @@ app does not lose it.
 | Signs in, then fails to save | Missing `drive.appdata` scope | Add it on the consent screen and sign in again |
 
 Any red message in Settings is the exact API error — read it; it names the cause.
+
+---
+
+## Why the phone app signs in differently
+
+Three approaches were tried, and only the third works:
+
+| Approach | What happened |
+|---|---|
+| Google's popup (the GIS library) | A WebView has no way to hand a popup's result back to its opener. The login succeeded and the popup sat there blank. |
+| Redirecting the WebView itself | Capacitor sends external URLs to the system browser, so Google came back to `https://localhost` in Chrome, which cannot reach it. Google also blocks OAuth inside embedded WebViews outright. |
+| **System browser + PKCE + custom scheme** | Works. This is what Google documents for native apps. |
+
+The flow:
+
+```
+app → Chrome Custom Tab → accounts.google.com
+    → com.googleusercontent.apps.<id>:/oauth2redirect?code=…
+    → app exchanges the code for a token, proving it with the PKCE verifier
+```
+
+PKCE replaces the client secret an app cannot keep: the app sends a hash of a
+random string up front and the string itself at exchange time, so an
+intercepted code is useless to anyone else.
+
+The Android client also returns a **refresh token**, so an expired session
+renews without opening a browser at all.

@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.24",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/browser": "^7.0.2",
     "@capacitor/filesystem": "^7.1.4",
     "@capacitor/share": "^7.0.2",
     "@preact/signals": "^2.11.3",

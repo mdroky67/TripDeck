@@ -22,7 +22,24 @@ let runtimeClientId = '';
  */
 export const setClientId = (id) => { runtimeClientId = (id || '').trim(); };
 export const clientId = () => runtimeClientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-export const isConfigured = () => /\.apps\.googleusercontent\.com$/.test(clientId());
+
+/**
+ * Android needs its own OAuth client, tied to the package name and the signing
+ * fingerprint. It has no secret — PKCE takes that role — and its redirect is a
+ * custom scheme built by reversing the client ID.
+ */
+let androidClientId = '';
+export const setAndroidClientId = (id) => { androidClientId = (id || '').trim(); };
+export const getAndroidClientId = () => androidClientId;
+
+const looksLikeId = (v) => /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(String(v || '').trim());
+export const isConfigured = () =>
+  isNative() ? looksLikeId(androidClientId) : looksLikeId(clientId());
+
+/** com.googleusercontent.apps.123-abc:/oauth2redirect */
+const androidRedirect = () =>
+  'com.googleusercontent.apps.' + androidClientId.replace('.apps.googleusercontent.com', '')
+  + ':/oauth2redirect';
 
 function gsiReady() {
   return new Promise((resolve, reject) => {
@@ -108,16 +125,125 @@ function readRedirect() {
   return { ok: true };
 }
 
+/* ---------------- PKCE in the system browser (native) ----------------
+ * Google refuses OAuth inside an embedded WebView, and a popup cannot hand its
+ * result back from one. The supported route for a native app is: open the real
+ * browser, come back through a custom scheme, and prove ownership of the
+ * request with PKCE instead of a secret the app cannot keep.
+ */
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)))
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function pkcePair() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const verifier = b64url(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return { verifier, challenge: b64url(digest) };
+}
+
+let pending = null;                        // { verifier, state, resolve, reject }
+
+async function signInNative() {
+  if (!looksLikeId(androidClientId)) throw new Error('No Android client ID configured');
+  const { Browser } = await import('@capacitor/browser');
+  const { App } = await import('@capacitor/app');
+  const { verifier, challenge } = await pkcePair();
+  const state = b64url(crypto.getRandomValues(new Uint8Array(12)));
+
+  const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+    client_id: androidClientId,
+    redirect_uri: androidRedirect(),
+    response_type: 'code',
+    scope: SCOPES,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    state,
+  });
+
+  return new Promise(async (resolve, reject) => {
+    pending = { verifier, state, resolve, reject };
+    let handle;
+    const done = async (fn) => {
+      try { await handle?.remove(); } catch {}
+      try { await Browser.close(); } catch {}
+      pending = null;
+      fn();
+    };
+    handle = await App.addListener('appUrlOpen', ({ url: back }) => {
+      if (!back || !back.startsWith('com.googleusercontent.apps.')) return;
+      exchange(back).then(
+        (t) => done(() => resolve(t)),
+        (e) => done(() => reject(e)),
+      );
+    });
+    // Closing the tab without finishing should not leave the caller hanging
+    const closed = await App.addListener('resume', () => {
+      setTimeout(() => {
+        if (pending) done(() => reject(new Error('cancelled')));
+      }, 1200);
+    });
+    const cleanup = handle;
+    handle = { remove: async () => { await cleanup.remove(); await closed.remove(); } };
+    Browser.open({ url }).catch((e) => done(() => reject(e)));
+  });
+}
+
+async function exchange(backUrl) {
+  const q = new URLSearchParams(backUrl.split('?')[1] || '');
+  if (q.get('error')) throw new Error(q.get('error'));
+  if (pending?.state && q.get('state') && q.get('state') !== pending.state) {
+    throw new Error('state_mismatch');
+  }
+  const code = q.get('code');
+  if (!code) throw new Error('no_code');
+
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: androidClientId,
+      code,
+      code_verifier: pending.verifier,
+      grant_type: 'authorization_code',
+      redirect_uri: androidRedirect(),
+    }),
+  });
+  if (!r.ok) throw new Error(`token_exchange_failed_${r.status}`);
+  const j = await r.json();
+  token = j.access_token;
+  expiresAt = Date.now() + ((j.expires_in || 3600) - 60) * 1000;
+  if (j.refresh_token) refreshToken = j.refresh_token;
+  return token;
+}
+
+let refreshToken = null;
+
+/** Android clients get a refresh token, so renewing needs no browser at all. */
+async function renewNative() {
+  if (!refreshToken) throw new Error('silent_unavailable');
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: androidClientId,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+  if (!r.ok) throw new Error('refresh_failed');
+  const j = await r.json();
+  token = j.access_token;
+  expiresAt = Date.now() + ((j.expires_in || 3600) - 60) * 1000;
+  return token;
+}
+
 export async function signIn({ silent = false } = {}) {
+  if (isNative()) {
+    if (silent) return renewNative();
+    return signInNative();
+  }
   const id = clientId();
   if (!id) throw new Error('No Google client ID configured');
-  if (isNative()) {
-    // A silent renew cannot redirect the whole app out from under the user;
-    // the caller falls back to asking them to sign in again.
-    if (silent) throw new Error('silent_unavailable');
-    startRedirectSignIn();
-    return new Promise(() => {});          // the page is navigating away
-  }
   await gsiReady();
   return new Promise((resolve, reject) => {
     client = window.google.accounts.oauth2.initTokenClient({

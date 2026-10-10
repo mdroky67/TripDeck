@@ -55,6 +55,7 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GOOGLE_REDIRECT_SCHEME: ${{ secrets.GOOGLE_REDIRECT_SCHEME }}
         run: |
           chmod +x android/gradlew
           cd android
