@@ -35,17 +35,45 @@ jobs:
       - name: Capacitor sync
         run: npx cap sync android
 
+      # A signed release build when the keystore secret is present, so the
+      # app's fingerprint stays the same and updates install over each other.
+      # Without the secret it falls back to a debug build, which still runs.
+      - name: Restore the signing key
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > android/keystore.p12
+            echo "signed=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "No keystore secret; building unsigned debug."
+            echo "signed=no" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Assemble with Gradle
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          if [ "${{ steps.key.outputs.signed }}" = "yes" ]; then
+            ./gradlew assembleRelease --no-daemon --stacktrace
+          else
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Name the file
         run: |
           mkdir -p out
           SHORT=$(echo "$GITHUB_SHA" | cut -c1-7)
-          cp android/app/build/outputs/apk/debug/app-debug.apk "out/TripDeck-$SHORT.apk"
+          if [ "${{ steps.key.outputs.signed }}" = "yes" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "out/TripDeck-$SHORT.apk"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "out/TripDeck-$SHORT-debug.apk"
+          fi
+          rm -f android/keystore.p12
           ls -la out
 
       - uses: actions/upload-artifact@v4

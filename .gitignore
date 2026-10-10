@@ -36,3 +36,5 @@ android/app/src/main/assets/capacitor.plugins.json
 # ব্যক্তিগত — কখনো git-এ যাবে না
 private/
 .env.production
+
+android/keystore.p12

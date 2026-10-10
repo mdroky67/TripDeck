@@ -16,10 +16,32 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release builds are signed with a fixed key, so the app's SHA-1 never
+    // changes. Android refuses to update an app signed by a different key, and
+    // Google ties the OAuth client to that fingerprint — a fresh debug key on
+    // every CI run would break both.
+    //
+    // The keystore never lives in this repository. CI writes it from a secret;
+    // locally, drop it at android/keystore.p12 (see private/signing/).
+    signingConfigs {
+        release {
+            def ks = file(System.getenv('ANDROID_KEYSTORE_FILE') ?: "${rootDir}/keystore.p12")
+            if (ks.exists() && System.getenv('ANDROID_KEYSTORE_PASSWORD')) {
+                storeFile ks
+                storeType 'PKCS12'
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'tripdeck'
+                keyPassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
