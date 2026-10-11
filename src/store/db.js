@@ -23,3 +23,16 @@ export const cacheRoad = (key, data) => set(R + key, { at: Date.now(), data });
 /** Last known Drive file id, so we don't search every time */
 export const getDriveFileId = () => get('tripdeck.driveFileId');
 export const setDriveFileId = (id) => set('tripdeck.driveFileId', id);
+
+/**
+ * The Google session, kept only on the phone.
+ *
+ * The browser build deliberately does not store it: a static site can still be
+ * hit by script injection, and a token sitting in IndexedDB is then readable.
+ * An installed app has its own sandbox, and the alternative there is signing in
+ * again every single time the app is reopened.
+ */
+const SESSION = 'tripdeck.session';
+export const loadSession = () => get(SESSION);
+export const saveSession = (s) => set(SESSION, s);
+export const clearSession = () => del(SESSION);

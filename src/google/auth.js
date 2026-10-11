@@ -8,7 +8,30 @@ const SCOPES = [
   'openid', 'email', 'profile',
 ].join(' ');
 
+import { loadSession, saveSession, clearSession } from '../store/db.js';
+
 let token = null, expiresAt = 0, client = null;
+
+/**
+ * Keep the session across restarts on the phone, where the alternative is
+ * signing in again every time the app is reopened. It still runs out when
+ * Google says it does — this only stops a restart from throwing it away early.
+ */
+function remember() {
+  if (!isNative()) return;
+  saveSession({ token, expiresAt }).catch(() => {});
+}
+
+export async function restoreSession() {
+  if (!isNative()) return false;
+  try {
+    const s = await loadSession();
+    if (!s?.token || Date.now() >= s.expiresAt) return false;
+    token = s.token;
+    expiresAt = s.expiresAt;
+    return true;
+  } catch { return false; }
+}
 let runtimeClientId = '';
 
 /**
@@ -204,11 +227,18 @@ function takeToken(backUrl) {
   if (!t) throw new Error('no_token');
   token = t;
   expiresAt = Date.now() + (Number(p.get('expires_in') || 3600) - 60) * 1000;
+  remember();
   return token;
 }
 
-/** No refresh token in this flow, so a quiet renewal is not on offer. */
-async function renewNative() { throw new Error('silent_unavailable'); }
+/**
+ * No refresh token in this flow, so the stored session is all there is to fall
+ * back on. Once it runs out, only a tap can renew it.
+ */
+async function renewNative() {
+  if (await restoreSession()) return token;
+  throw new Error('silent_unavailable');
+}
 
 export async function signIn({ silent = false } = {}) {
   if (isNative()) {
@@ -247,6 +277,7 @@ export function signOut() {
     try { window.google.accounts.oauth2.revoke(token, () => {}); } catch {}
   }
   token = null; expiresAt = 0;
+  clearSession().catch(() => {});
 }
 
 /** Name, email, picture — not needed for Drive, only for display */
